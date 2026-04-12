@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { createTask, deleteTask, updateTask, getTasks, getRecommendations } from "@/lib/api";
 import { clearAuthData, getToken, getUserName } from "@/lib/auth";
 import { TaskItem } from "@/lib/types";
+import AddTaskInput from "@/components/AddTaskInput";
+import SuggestionsBar from "@/components/SuggestionsBar";
+import TaskList from "@/components/TaskList";
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -29,6 +32,36 @@ export default function DashboardPage() {
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [recommendationLoading, setRecommendationLoading] = useState(false);
 
+    const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+    const [sortBy, setSortBy] = useState<"created" | "dueDate" | "priority">("created");
+
+    const priorityOrder: Record<string, number> = {
+        high: 3,
+        medium: 2,
+        low: 1,
+    };
+
+    const filteredTasks = tasks.
+        filter((task) => {
+            if(filter == "active") return !task.isCompleted;
+            if(filter == "completed") return task.isCompleted;
+            return true;
+        })
+        .sort((a, b) => {
+            if(sortBy === "dueDate"){
+                if(!a.dueDate && !b.dueDate) return 0;
+                if(!a.dueDate) return 1;
+                if(!b.dueDate) return -1;
+                
+                return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+            }
+            if(sortBy === "priority"){
+                return priorityOrder[b.priority] - priorityOrder[a.priority];
+            }
+
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
     useEffect(() => {
         const currentToken = getToken();
         const storedName = getUserName() ?? "";
@@ -49,11 +82,11 @@ export default function DashboardPage() {
         }
 
         const timeout = setTimeout(() => {
-            handleGetRecommendations(title, description);
+            handleGetRecommendations(title, description, category);
         }, 400);
 
         return () => clearTimeout(timeout);
-    }, [title, description]);
+    }, [title, description, category]);
 
     function requireToken() {
         const currentToken = getToken();
@@ -230,7 +263,7 @@ export default function DashboardPage() {
         }
     }
 
-    async function handleGetRecommendations(currentTitle: string, currentDescription: string) {
+    async function handleGetRecommendations(currentTitle: string, currentDescription: string, currentCategory: string) {
         const currentToken = getToken();
 
         if (!currentToken || !currentTitle.trim()) {
@@ -244,6 +277,7 @@ export default function DashboardPage() {
             const response = await getRecommendations({
                 title: currentTitle,
                 description: currentDescription,
+                category: currentCategory
             }, currentToken);
 
             setSuggestions(
@@ -281,204 +315,101 @@ export default function DashboardPage() {
     }
 
     return (
-        <main className="min-h-screen p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-gray-600">Welcome, {userName || "User"}</p>
-        </div>
-        <button onClick={handleLogout} className="rounded-lg border px-4 py-2">
-          Logout
-        </button>
-      </div>
-
-      <form onSubmit={handleCreateTask} className="rounded-2xl border p-4 space-y-3">
-        <input
-          className="w-full rounded-lg border p-3"
-          placeholder="Task title"
-          value={title}
-          onChange={(e) => 
-            {
-                setTitle(e.target.value)
-                if(!title.trim()) {
-                    setSuggestions([]);
-                }
-            }}
-        />
-        <textarea
-          className="w-full rounded-lg border p-3"
-          placeholder="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-        </select>
-
-        <input
-            type="text"
-            placeholder="Category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-        />
-
-        <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-        />
-        {recommendationLoading ? (
-            <p className="text-sm text-gray-500">Getting suggestions...</p>
-            ) : suggestions.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-                {suggestions.map((suggestion) => (
-                <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => handleCreateFromSuggestion(suggestion)}
-                    className="rounded-full border px-3 py-1 text-sm"
-                >
-                    {suggestion}
-                </button>
-                ))}
-            </div>
-            ) : null}
-        <button className="rounded-lg border px-4 py-2">Add task</button>
-      </form>
-
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-      {loading ? (
-        <p>Loading tasks...</p>
-      ) : (
-        <div className="space-y-3">
-          {tasks.map((task) => (
-            <div
-                key={task.id}
-                className="rounded-2xl border p-4 flex items-start justify-between gap-4"
-            >
-                {editingTaskId === task.id ? (
-                <div className="w-full space-y-3">
-                    <input
-                    className="w-full rounded-lg border p-3"
-                    value={editingTitle}
-                    onChange={(e) => setEditingTitle(e.target.value)}
-                    placeholder="Task title"
-                    />
-
-                    <textarea
-                    className="w-full rounded-lg border p-3"
-                    value={editingDescription}
-                    onChange={(e) => setEditingDescription(e.target.value)}
-                    placeholder="Description"
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <select
-                        className="rounded-lg border p-3"
-                        value={editingPriority}
-                        onChange={(e) => setEditingPriority(e.target.value)}
-                    >
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                    </select>
-
-                    <input
-                        className="rounded-lg border p-3"
-                        type="text"
-                        placeholder="Category"
-                        value={editingCategory}
-                        onChange={(e) => setEditingCategory(e.target.value)}
-                    />
-
-                    <input
-                        className="rounded-lg border p-3"
-                        type="date"
-                        value={editingDueDate}
-                        onChange={(e) => setEditingDueDate(e.target.value)}
-                    />
-                    </div>
-
-                    <div className="flex gap-2">
-                    <button
-                        onClick={() => handleSaveEdit(task.id)}
-                        className="rounded-lg border px-3 py-2 text-sm"
-                    >
-                        Save
-                    </button>
-                    <button
-                        onClick={handleCancelEdit}
-                        className="rounded-lg border px-3 py-2 text-sm"
-                    >
-                        Cancel
-                    </button>
-                    </div>
+        <main className="min-h-screen bg-neutral-950 px-4 py-8 text-neutral-100">
+            <div className="mx-auto max-w-4xl space-y-6">
+                <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-semibold tracking-light text-neutral-200">
+                    Reminders
+                    </h1>
+                    <p className="mt-1 text-sm text-neutral-400">
+                    Welcome, {userName || "User"}
+                    </p>
                 </div>
-                ) : (
-                <>
-                    <div>
-                    <h2
-                        className={`font-medium ${
-                        task.isCompleted ? "line-through text-gray-500" : ""
-                        }`}
-                    >
-                        {task.title}
-                    </h2>
 
-                    {task.description ? (
-                        <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-                    ) : null}
+                <button
+                    onClick={handleLogout}
+                    className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-200 shadow-sm transition hover:bg-neutral-800"
+                >
+                    Logout
+                </button>
+                </div>
 
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full border px-2 py-1">
-                        Priority: {task.priority}
-                        </span>
+                <AddTaskInput
+                    title={title}
+                    description={description}
+                    category={category}
+                    priority={priority}
+                    dueDate={dueDate}
+                    onTitleChange={setTitle}
+                    onDescriptionChange={setDescription}
+                    onCategoryChange={setCategory}
+                    onPriorityChange={setPriority}
+                    onDueDateChange={setDueDate}
+                    onSubmit={handleCreateTask}
+                />
 
-                        {task.category ? (
-                        <span className="rounded-full border px-2 py-1">
-                            Category: {task.category}
-                        </span>
-                        ) : null}
+                <SuggestionsBar
+                suggestions={suggestions}
+                loading={recommendationLoading}
+                onSuggestionClick={handleCreateFromSuggestion}
+                />
 
-                        {task.dueDate ? (
-                        <span className="rounded-full border px-2 py-1">
-                            Due: {new Date(task.dueDate).toLocaleDateString()}
-                        </span>
-                        ) : null}
-                    </div>
-                    </div>
+                {error ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {error}
+                </div>
+                ) : null}
 
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-3 shadow-sm">
                     <div className="flex gap-2">
-                    <button
-                        onClick={() => handleToggleTask(task)}
-                        className="rounded-lg border px-3 py-2 text-sm"
-                    >
-                        {task.isCompleted ? "Undo" : "Complete"}
-                    </button>
-
-                    <button
-                        onClick={() => handleStartEdit(task)}
-                        className="rounded-lg border px-3 py-2 text-sm"
-                    >
-                        Edit
-                    </button>
-
-                    <button
-                        onClick={() => handleDeleteTask(task.id)}
-                        className="rounded-lg border px-3 py-2 text-sm"
-                    >
-                        Delete
-                    </button>
+                        {["all", "active", "completed"].map((f) => (
+                        <button
+                            key={f}
+                            onClick={() => setFilter(f as "all" | "active" | "completed")}
+                            className={`rounded-full px-3 py-1.5 text-sm transition ${
+                            filter === f
+                                ? "bg-white text-black"
+                                : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                            }`}
+                        >
+                            {f.charAt(0).toUpperCase() + f.slice(1)}
+                        </button>
+                        ))}
                     </div>
-                </>
-                )}
+
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as "created" | "dueDate" | "priority")}
+                        className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm text-white outline-none"
+                    >
+                        <option value="created">Newest</option>
+                        <option value="dueDate">Due date</option>
+                        <option value="priority">Priority</option>
+                    </select>
+                </div>
+
+                <TaskList
+                    tasks={filteredTasks}
+                    loading={loading}
+                    editingTaskId={editingTaskId}
+                    editingTitle={editingTitle}
+                    editingDescription={editingDescription}
+                    editingCategory={editingCategory}
+                    editingPriority={editingPriority}
+                    editingDueDate={editingDueDate}
+                    onToggle={handleToggleTask}
+                    onDelete={handleDeleteTask}
+                    onStartEdit={handleStartEdit}
+                    onCancelEdit={handleCancelEdit}
+                    onSaveEdit={handleSaveEdit}
+                    setEditingTitle={setEditingTitle}
+                    setEditingDescription={setEditingDescription}
+                    setEditingCategory={setEditingCategory}
+                    setEditingPriority={setEditingPriority}
+                    setEditingDueDate={setEditingDueDate}
+                />
             </div>
-            ))}
-        </div>
-      )}
-    </main>
+        </main>
     );
 }
