@@ -1,54 +1,79 @@
 using TodoApp.Api.DTOs;
 using TodoApp.Api.Services.Interfaces;
+using TodoApp.Api.Configuration;
+using Microsoft.Extensions.Options;
+using System.Text;
+using System.Text.Json;
+using TodoApp.Api.Repositories.Interfaces;
 
 namespace TodoApp.Api.Services;
 
 public class RecommendationService : IRecommendationService
 {
-    public Task<RecommendationResponse> GetRecommendationsAsync(RecommendationRequest request)
+    private readonly HttpClient _httpClient;
+    private readonly RecommendationServiceSettings _settings;
+    private readonly ICacheService _cacheService;
+    private readonly ITaskRepository _taskRepository;
+    public RecommendationService(HttpClient httpClient, IOptions<RecommendationServiceSettings> settings, 
+    ICacheService cacheService, ITaskRepository taskRepository)
     {
-        // Placeholder implementation - in a real application, this would call an AI service
-        var input = $"{request.Title} {request.Description}".ToLower();
-        var suggestions = new HashSet<string>();
+        _httpClient = httpClient;
+        _settings = settings.Value;
+        _cacheService = cacheService;
+        _taskRepository = taskRepository;
+    }
+    public async Task<RecommendationResponse> GetRecommendationsAsync(
+        string userId, RecommendationRequest request)
+    {
 
-        if (input.Contains("milk"))
-        {
-            suggestions.Add("Buy bread");
-            suggestions.Add("Buy eggs");
-            suggestions.Add("Buy butter");
+        // check cache first
+
+        var normalizedTitle = request.Title.Trim().ToLowerInvariant();
+        var normalizedDescription = (request.Description ?? "").Trim().ToLowerInvariant();
+        var cacheKey = $"recommendations:{normalizedTitle}:{normalizedDescription}";
+
+        var cached = await _cacheService.GetAsync<RecommendationResponse>(cacheKey);
+        if (cached != null)        {
+            return cached;
         }
-        if (input.Contains("bread"))
+
+        var userTasks = await _taskRepository.GetByUserIdAsync(userId); // get user's existing tasks
+
+        request.UserTasks = userTasks.
+            Where(t => !string.IsNullOrWhiteSpace(t.Title))
+            .Select(t => t.Title)
+            .ToList();
+
+        var payload = JsonSerializer.Serialize(
+            request,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            }
+        );
+        var content = new StringContent(payload, Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync($"{_settings.BaseUrl}/recommend", content);
+
+        if (!response.IsSuccessStatusCode)
         {
-            suggestions.Add("Buy jam");
-            suggestions.Add("Buy butter");
+            return new RecommendationResponse
+            {
+                Suggestions = new List<string>()
+            };
         }
-        if (input.Contains("rice"))
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<RecommendationResponse>(responseBody, new JsonSerializerOptions
         {
-            suggestions.Add("Buy beans");
-            suggestions.Add("Buy vegetables");
-        }
-        if (input.Contains("exercise"))
-        {
-            suggestions.Add("Go for a run");
-            suggestions.Add("Do yoga");
-            suggestions.Add("Lift weights");
-        }
-        if(input.Contains("interview"))
-        {
-            suggestions.Add("Review common interview questions");
-            suggestions.Add("Practice coding problems");
-            suggestions.Add("Research the company");
-        }
-        if(input.Contains("assignment") || input.Contains("homework"))
-        {
-            suggestions.Add("Break down the task into smaller steps");
-            suggestions.Add("Set specific goals for each step");
-            suggestions.Add("Schedule dedicated time to work on it");
-        }
-        return Task.FromResult(new RecommendationResponse
-        {
-            Suggestions = suggestions.ToList()
+            PropertyNameCaseInsensitive = true
         });
+
+        await _cacheService.SetAsync(cacheKey, result, TimeSpan.FromMinutes(10));
+
+        return result ?? new RecommendationResponse
+        {
+            Suggestions = new List<string>()
+        };
     }
 }
 

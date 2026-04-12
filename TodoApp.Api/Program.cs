@@ -7,6 +7,8 @@ using TodoApp.Api.Repositories;
 using TodoApp.Api.Repositories.Interfaces;
 using TodoApp.Api.Services;
 using TodoApp.Api.Services.Interfaces;
+using StackExchange.Redis;
+using Microsoft.Extensions.Options;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,6 +55,24 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
 builder.Services.AddSingleton<MongoDbContext>();
 
+// redis configuration
+
+builder.Services.Configure<RedisSettings>(builder.Configuration.GetSection("RedisSettings"));
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var config = sp.GetRequiredService<
+        Microsoft.Extensions.Options.IOptions<RedisSettings>
+    >().Value;
+
+    return ConnectionMultiplexer.Connect(config.ConnectionString);
+});
+builder.Services.AddScoped<ICacheService, CacheService>();
+
+
+builder.Services.Configure<RecommendationServiceSettings>(builder.Configuration.GetSection("RecommendationService"));
+
+builder.Services.AddHttpClient<IRecommendationService, RecommendationService>();
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
 
 // add authentication
@@ -78,7 +98,6 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IAuthService, AuthService>(); 
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 
 // register repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();

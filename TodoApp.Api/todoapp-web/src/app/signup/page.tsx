@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signup } from "@/lib/api";
 import { saveAuthData } from "@/lib/auth";
+import AuthCard from "@/components/AuthCard";
 
 export default function SignupPage() {
     const router = useRouter();
@@ -28,54 +29,49 @@ export default function SignupPage() {
         }
     }
     return (
-        <main className="min-h-screen flex items-center justify-center p-6">
-            <form
-                onSubmit={handleSubmit}
-                className="w-full max-w-md rounded-2xl border p-6 shadow-sm space-y-4"
-            >
-                <h1 className="text-2xl font-semibold">Sign up</h1>
-
+        <AuthCard
+            title="Create account"
+            subtitle="Set up your workspace and start organizing your day."
+            buttonText="Create account"
+            footerText="Already have an account?"
+            footerLinkText="Login"
+            footerHref="/login"
+            error={error}
+            loading={isLoading}
+            onSubmit={handleSubmit}
+        >
+            <div>
+                <label className="mb-2 block text-sm text-neutral-300">Name</label>
                 <input
-                className="w-full rounded-lg border p-3"
+                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none placeholder:text-neutral-500"
                 type="text"
-                placeholder="Name"
+                placeholder="Your name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 />
+            </div>
 
+            <div>
+                <label className="mb-2 block text-sm text-neutral-300">Email</label>
                 <input
-                className="w-full rounded-lg border p-3"
+                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none placeholder:text-neutral-500"
                 type="email"
-                placeholder="Email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 />
+            </div>
 
+            <div>
+                <label className="mb-2 block text-sm text-neutral-300">Password</label>
                 <input
-                className="w-full rounded-lg border p-3"
+                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none placeholder:text-neutral-500"
                 type="password"
-                placeholder="Password"
+                placeholder="Create a password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 />
-
-                {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-                <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full rounded-lg border px-4 py-3 font-medium"
-                >
-                {isLoading ? "Creating account..." : "Create account"}
-                </button>
-
-                <p className="text-sm">
-                Already have an account?{" "}
-                <a href="/login" className="underline">
-                    Login
-                </a>
-                </p>
-            </form>
-        </main>
-    )
+            </div>
+        </AuthCard>
+    );
 }

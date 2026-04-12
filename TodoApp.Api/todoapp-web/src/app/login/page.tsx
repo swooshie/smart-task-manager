@@ -4,12 +4,13 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
 import { saveAuthData } from "@/lib/auth";
+import AuthCard from "@/components/AuthCard";
 
 export default function LoginPage() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
     async function handleSubmit(e: FormEvent) {
@@ -28,46 +29,39 @@ export default function LoginPage() {
     }
 
     return (
-        <main className="min-h-screen flex items-center justify-center p-6">
-            <form
-                onSubmit={handleSubmit}
-                className="w-full max-w-md rounded-2xl border p-6 shadow-sm space-y-4"
-            >
-                <h1 className="text-2xl font-semibold">Login</h1>
+        <AuthCard
+        title="Login"
+        subtitle="Stay organized with tasks, suggestions, and reminders."
+        buttonText="Login"
+        footerText="Don’t have an account?"
+        footerLinkText="Sign up"
+        footerHref="/signup"
+        error={error}
+        loading={isLoading}
+        onSubmit={handleSubmit}
+        >
+        <div>
+            <label className="mb-2 block text-sm text-neutral-300">Email</label>
+            <input
+            className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none placeholder:text-neutral-500"
+            type="email"
+            placeholder="you@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            />
+        </div>
 
-                <input
-                className="w-full rounded-lg border p-3"
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                />
-
-                <input
-                className="w-full rounded-lg border p-3"
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                />
-
-                {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-                <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full rounded-lg border px-4 py-3 font-medium"
-                >
-                {isLoading ? "Logging in..." : "Login"}
-                </button>
-
-                <p className="text-sm">
-                Don’t have an account?{" "}
-                <a href="/signup" className="underline">
-                    Sign up
-                </a>
-                </p>
-            </form>
-        </main>
-    )
+        <div>
+            <label className="mb-2 block text-sm text-neutral-300">Password</label>
+            <input
+            className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none placeholder:text-neutral-500"
+            type="password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            />
+        </div>
+        </AuthCard>
+    );
+    
 }

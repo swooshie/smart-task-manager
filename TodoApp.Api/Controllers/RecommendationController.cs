@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TodoApp.Api.DTOs;
@@ -17,9 +18,13 @@ public class RecommendationsController : ControllerBase
     }
 
     [HttpPost]
-    public IActionResult GetRecommendations([FromBody] RecommendationRequest request)
+    public async Task<IActionResult> GetRecommendations([FromBody] RecommendationRequest request)
     {
-        var response = _recommendationService.GetRecommendationsAsync(request).Result;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))        {
+            return Unauthorized(new {message = "Invalid token."});
+        }
+        var response = _recommendationService.GetRecommendationsAsync(userId, request).Result;
         return Ok(response);
     }
 }

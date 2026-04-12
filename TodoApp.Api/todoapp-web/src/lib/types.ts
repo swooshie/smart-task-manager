@@ -48,6 +48,7 @@ export type UpdateTaskRequest = {
 export type RecommendationRequest = {
 	title: string;
 	description?: string;
+  category?: string;
 }
 
 export type RecommendationResponse = {
