@@ -26,35 +26,7 @@ public class RecommendationService : IRecommendationService
         string userId, RecommendationRequest request)
     {
 
-        // check cache first
-
-        var normalizedTitle = request.Title.Trim().ToLowerInvariant();
-        var normalizedDescription = (request.Description ?? "").Trim().ToLowerInvariant();
-        var cacheKey = $"recommendations:{normalizedTitle}:{normalizedDescription}";
-
-        var cached = await _cacheService.GetAsync<RecommendationResponse>(cacheKey);
-        if (cached != null)        {
-            return cached;
-        }
-
-        var userTasks = await _taskRepository.GetByUserIdAsync(userId); // get user's existing tasks
-
-        request.UserTasks = userTasks.
-            Where(t => !string.IsNullOrWhiteSpace(t.Title))
-            .Select(t => t.Title)
-            .ToList();
-
-        var payload = JsonSerializer.Serialize(
-            request,
-            new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            }
-        );
-        var content = new StringContent(payload, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync($"{_settings.BaseUrl}/recommend", content);
-
-        if (!response.IsSuccessStatusCode)
+        if (string.IsNullOrWhiteSpace(_settings.BaseUrl))
         {
             return new RecommendationResponse
             {
@@ -62,18 +34,65 @@ public class RecommendationService : IRecommendationService
             };
         }
 
-        var responseBody = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<RecommendationResponse>(responseBody, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        // check cache first
+        try
+        {   
+            var normalizedTitle = request.Title.Trim().ToLowerInvariant();
+            var normalizedDescription = (request.Description ?? "").Trim().ToLowerInvariant();
+            var cacheKey = $"recommendations:{normalizedTitle}:{normalizedDescription}";
 
-        await _cacheService.SetAsync(cacheKey, result, TimeSpan.FromMinutes(10));
+            var cached = await _cacheService.GetAsync<RecommendationResponse>(cacheKey);
+            if (cached != null)        {
+                return cached;
+            }
 
-        return result ?? new RecommendationResponse
+            var userTasks = await _taskRepository.GetByUserIdAsync(userId); // get user's existing tasks
+
+            request.UserTasks = userTasks.
+                Where(t => !string.IsNullOrWhiteSpace(t.Title))
+                .Select(t => t.Title)
+                .ToList();
+
+            var payload = JsonSerializer.Serialize(
+                request,
+                new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                }
+            );
+            var content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync($"{_settings.BaseUrl}/recommend", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new RecommendationResponse
+                {
+                    Suggestions = new List<string>()
+                };
+            }
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<RecommendationResponse>(responseBody, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            await _cacheService.SetAsync(cacheKey, result, TimeSpan.FromMinutes(10));
+
+            return result ?? new RecommendationResponse
+            {
+                Suggestions = new List<string>()
+            };  
+        }
+        catch
         {
-            Suggestions = new List<string>()
-        };
+            return new RecommendationResponse
+            {
+                Suggestions = new List<string>()
+            };
+        }
+
+        
     }
 }
 

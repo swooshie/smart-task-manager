@@ -3,12 +3,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from app.config import MIN_SCORE, MAX_SUGGESTIONS, USER_BOOST_WEIGHT, CATEGORY_BOOST_WEIGHT
 from app.data_loader import load_global_tasks, extract_task_texts
-from app.model_loader import model
+from app.model_loader import get_model
 from app.schemas import RecommendationRequest, RecommendationResponse
 
 GLOBAL_TASKS = load_global_tasks()
-GLOBAL_TASKS_TEXTS = extract_task_texts(GLOBAL_TASKS)
-GLOBAL_TASKS_EMBEDDINGS = model.encode(GLOBAL_TASKS_TEXTS)
 
 def normalize_text(text: str) -> str:
     return " ".join(text.lower().strip().split())
@@ -17,6 +15,7 @@ def get_recommendations(request: RecommendationRequest) -> RecommendationRespons
     query = f"{request.title}. {request.description or ''}".strip()
     normalized_query = normalize_text(query)
     normalized_category = normalize_text(request.category) if request.category else None
+    model = get_model()
     query_embedding = model.encode([query])
 
     user_tasks_clean = [task.strip() for task in request.userTasks if task and task.strip()]
@@ -45,7 +44,8 @@ def get_recommendations(request: RecommendationRequest) -> RecommendationRespons
             deduped_tasks.append(task)
 
     
-    task_texts = [item["task"] for item in deduped_tasks]  
+    task_texts = [item["task"] for item in deduped_tasks] 
+    model = get_model() 
     task_embeddings = model.encode(task_texts)
 
     similarities = cosine_similarity(query_embedding, task_embeddings)[0]
@@ -53,6 +53,7 @@ def get_recommendations(request: RecommendationRequest) -> RecommendationRespons
     # User history boost
     user_task_embeddings = None
     if user_tasks_clean:
+        model = get_model()
         user_task_embeddings = model.encode(user_tasks_clean)
     
     scored_tasks = []
