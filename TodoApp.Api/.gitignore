@@ -1,2 +1,6 @@
 bin
 obj
+.git
+.vscode
+todoapp-web/node_modules
+todoapp-web/.next
