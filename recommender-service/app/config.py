@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -8,3 +9,5 @@ MIN_SCORE = 0.35
 MAX_SUGGESTIONS = 5
 USER_BOOST_WEIGHT = 0.15
 CATEGORY_BOOST_WEIGHT = 0.1
+
+USE_TRANSFORMER = str(os.environ.get("USE_TRANSFORMER")).strip().lower() == "true"
