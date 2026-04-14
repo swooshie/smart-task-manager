@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using System.Text;
 using System.Text.Json;
 using TodoApp.Api.Repositories.Interfaces;
+using System.Net;
 
 namespace TodoApp.Api.Services;
 
@@ -52,6 +53,8 @@ public class RecommendationService : IRecommendationService
                 Where(t => !string.IsNullOrWhiteSpace(t.Title))
                 .Select(t => t.Title)
                 .ToList();
+            
+            var url = $"{_settings.BaseUrl.TrimEnd('/')}/recommend";
 
             var payload = JsonSerializer.Serialize(
                 request,
@@ -61,9 +64,10 @@ public class RecommendationService : IRecommendationService
                 }
             );
             var content = new StringContent(payload, Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync($"{_settings.BaseUrl}/recommend", content);
+            // var response = await _httpClient.PostAsync($"{_settings.BaseUrl}/recommend", content);
+            var response = await SendWithRetryAsync(url, content);
 
-            if (!response.IsSuccessStatusCode)
+            if (response == null || !response.IsSuccessStatusCode)
             {
                 return new RecommendationResponse
                 {
@@ -90,9 +94,56 @@ public class RecommendationService : IRecommendationService
             {
                 Suggestions = new List<string>()
             };
-        }
+        } 
+    }
 
-        
+    private async Task<HttpResponseMessage> SendWithRetryAsync(
+        string url,
+        StringContent content
+    )
+    {
+        const int maxAttempts = 3;
+        for(int attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    url
+                )
+                {
+                    Content = new StringContent(
+                        await content.ReadAsStringAsync(),
+                        Encoding.UTF8,
+                        "application/json"
+                    )
+                };
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                var response = await _httpClient.SendAsync(request, cts.Token);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return response;
+                }
+                if(response.StatusCode != HttpStatusCode.BadGateway &&
+                    response.StatusCode != HttpStatusCode.ServiceUnavailable &&
+                    response.StatusCode != HttpStatusCode.GatewayTimeout
+                )
+                {
+                    return response;
+                }
+            }
+            catch
+            {
+                if(attempt == maxAttempts)
+                {
+                    return null;
+                }
+            }
+            await Task.Delay(TimeSpan.FromSeconds(attempt*2));
+        }
+        return null;
     }
 }
 

@@ -31,6 +31,7 @@ export default function DashboardPage() {
 
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [recommendationLoading, setRecommendationLoading] = useState(false);
+    const [recommendationWarmingUp, setRecommendationWarmingUp] = useState(false);
 
     const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
     const [sortBy, setSortBy] = useState<"created" | "dueDate" | "priority">("created");
@@ -271,9 +272,17 @@ export default function DashboardPage() {
             return;
         }
 
+        let warmingTimer: ReturnType<typeof setTimeout> | null = null;
+
         try {
             setRecommendationLoading(true);
+            setRecommendationWarmingUp(true);
             const existingTitles = new Set(tasks.map((t) => t.title.toLowerCase()));
+            
+            warmingTimer = setTimeout(()=>{
+                setRecommendationWarmingUp(true)
+            }, 2500);
+            
             const response = await getRecommendations({
                 title: currentTitle,
                 description: currentDescription,
@@ -287,7 +296,11 @@ export default function DashboardPage() {
             setSuggestions([]);
             setError(err instanceof Error ? err.message : "Failed to get suggestions");
         } finally {
+            if(warmingTimer){
+                clearTimeout(warmingTimer);
+            }
             setRecommendationLoading(false);
+            setRecommendationWarmingUp(false);
         }
         }
 
@@ -352,6 +365,7 @@ export default function DashboardPage() {
                 <SuggestionsBar
                 suggestions={suggestions}
                 loading={recommendationLoading}
+                warmingUp={recommendationWarmingUp}
                 onSuggestionClick={handleCreateFromSuggestion}
                 />
 

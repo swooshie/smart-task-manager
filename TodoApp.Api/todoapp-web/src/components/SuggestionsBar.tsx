@@ -3,18 +3,22 @@
 type SuggestionsBarProps = {
   suggestions: string[];
   loading: boolean;
+  warmingUp?: boolean;
   onSuggestionClick: (suggestion: string) => void;
 };
 
 export default function SuggestionsBar({
   suggestions,
   loading,
+  warmingUp,
   onSuggestionClick,
 }: SuggestionsBarProps) {
   if (loading) {
     return (
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
-        <p className="text-sm text-neutral-400">Thinking...</p>
+        <p className="text-sm text-neutral-400">
+          {warmingUp ? "Suggestions are warming up..." : "Thinking..."}
+        </p>
       </div>
     );
   }
