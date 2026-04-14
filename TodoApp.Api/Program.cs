@@ -71,7 +71,9 @@ builder.Services.AddScoped<ICacheService, CacheService>();
 
 builder.Services.Configure<RecommendationServiceSettings>(builder.Configuration.GetSection("RecommendationService"));
 
-builder.Services.AddHttpClient<IRecommendationService, RecommendationService>();
+builder.Services.AddHttpClient<IRecommendationService, RecommendationService>(client => {
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()!;
 
