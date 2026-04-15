@@ -1,5 +1,6 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System.Text.Json.Serialization;
 
 namespace TodoApp.Api.Models;
 
@@ -22,6 +23,7 @@ public class TaskItem
     [BsonElement("dueDate")]
     public DateTime? DueDate { get; set; }
     [BsonElement("isComplete")]
+    [JsonPropertyName("isCompleted")]
     public bool IsComplete { get; set; }
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

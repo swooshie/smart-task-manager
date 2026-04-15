@@ -84,13 +84,27 @@ export async function createTask(request: CreateTaskRequest, token: string): Pro
     return handleResponse<TaskItem>(response);
 }
 
-export async function updateTask(id: string, request: UpdateTaskRequest, token: string): Promise<TaskItem> {
-    const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
-        method: "PUT",
-        headers: getAuthHeaders(token),
-        body: JSON.stringify(request),
-    });
-    return handleResponse<TaskItem>(response);
+export async function updateTask(
+  id: string,
+  request: UpdateTaskRequest,
+  token: string
+): Promise<TaskItem> {
+  console.log("updateTask called", {
+    id,
+    request,
+    hasToken: !!token,
+    apiBaseUrl: API_BASE_URL,
+  });
+
+  const response = await fetch(`${API_BASE_URL}/api/tasks/${id}`, {
+    method: "PUT",
+    headers: getAuthHeaders(token),
+    body: JSON.stringify(request),
+  });
+
+  console.log("updateTask response status", response.status);
+
+  return handleResponse<TaskItem>(response);
 }
 
 export async function deleteTask(id: string, token: string): Promise<void> {

@@ -177,7 +177,7 @@ export default function DashboardPage() {
     );
 
     // Keep the visual state for 2 seconds
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Commit the local task state after animation
     setTasks((prev) =>
