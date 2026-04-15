@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main, dev]
-  pull:
+  pull_request:
     branches: [main]
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 2-
+          node-version: 20
           cache: npm
           cache-dependency-path: TodoApp.Api/todoapp-web/package-lock.json
       
@@ -81,4 +81,4 @@ jobs:
         env:
           USE_TRANSFORMER: "false"
         run:
-          python -c "form app.main import app; print('Python service imports successfully')" 
+          python -c "from app.main import app; print('Python service imports successfully')" 
