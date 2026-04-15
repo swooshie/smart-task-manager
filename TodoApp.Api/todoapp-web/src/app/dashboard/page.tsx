@@ -304,8 +304,15 @@ export default function DashboardPage() {
                 response.suggestions.filter((s) => !existingTitles.has(s.toLowerCase()))
             );
         } catch (err) {
-            setSuggestions([]);
-            setError(err instanceof Error ? err.message : "Failed to get suggestions");
+            console.error("Recommendation error:", err);
+
+            setSuggestions([
+                "Review your tasks",
+                "Plan tomorrow",
+                "Clean workspace",
+                "Check emails",
+                "Workout",
+            ]);
         } finally {
             if(warmingTimer){
                 clearTimeout(warmingTimer);
