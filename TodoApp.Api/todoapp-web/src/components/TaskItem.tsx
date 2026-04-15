@@ -1,6 +1,7 @@
 "use client";
 
 import { TaskItem as Task } from "@/lib/types";
+import { motion } from "framer-motion"
 
 type TaskItemProps = {
   task: Task;
@@ -20,6 +21,7 @@ type TaskItemProps = {
   setEditingCategory: (value: string) => void;
   setEditingPriority: (value: string) => void;
   setEditingDueDate: (value: string) => void;
+  transitionState?: "completing" | "uncompleting";
 };
 
 function getPriorityClasses(priority: string) {
@@ -53,7 +55,9 @@ export default function TaskItem({
   setEditingCategory,
   setEditingPriority,
   setEditingDueDate,
+  transitionState
 }: TaskItemProps) {
+    const visuallyCompleted = task.isCompleted || transitionState === "completing";
   if (isEditing) {
     return (
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
@@ -120,32 +124,40 @@ export default function TaskItem({
 
   return (
     <div
-      className={`rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition ${
-        task.isCompleted ? "opacity-70" : ""
-      }`}
+    className={`rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition duration-300 ${
+        visuallyCompleted ? "opacity-70" : ""
+    } ${transitionState ? "scale-[0.985]" : ""}`}
     >
       <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={() => onToggle(task)}
-          className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-sm transition ${
-            task.isCompleted
-              ? "border-white bg-white text-black"
-              : "border-neutral-600 bg-neutral-950 text-transparent hover:border-neutral-400"
-          }`}
-          aria-label={task.isCompleted ? "Mark as incomplete" : "Mark as complete"}
-        >
-          ✓
-        </button>
+        <motion.button
+            whileTap={{ scale: 0.92 }}
+            type="button"
+            onClick={() => onToggle(task)}
+            className={`relative z-10 mt-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border transition ${
+                visuallyCompleted
+                ? "border-white bg-white"
+                : "border-neutral-500 bg-transparent hover:border-neutral-300"
+            }`}
+            aria-label={task.isCompleted ? "Mark as incomplete" : "Mark as complete"}
+            >
+            {visuallyCompleted && (
+                <motion.span
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.15 }}
+                className="block h-3 w-3 rounded-full bg-black"
+                />
+            )}
+        </motion.button>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className={`text-base font-medium ${
-                task.isCompleted ? "line-through text-neutral-500" : "text-white"
-              }`}
-            >
-              {task.title}
+                className={`text-base font-medium ${
+                    visuallyCompleted ? "line-through text-neutral-500" : "text-white"
+                }`}
+                >
+                {task.title}
             </h3>
 
             {task.priority ? (
