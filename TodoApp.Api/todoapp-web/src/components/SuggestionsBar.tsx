@@ -1,5 +1,7 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
+
 type SuggestionsBarProps = {
   suggestions: string[];
   loading: boolean;
@@ -36,16 +38,24 @@ export default function SuggestionsBar({
       <p className="mb-3 text-sm font-medium text-neutral-200">Suggested tasks</p>
 
       <div className="flex flex-wrap gap-2">
-        {suggestions.map((suggestion) => (
-          <button
-            key={suggestion}
-            type="button"
-            onClick={() => onSuggestionClick(suggestion)}
-            className="rounded-full border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-100 transition hover:scale-[1.02] hover:bg-neutral-700"
-          >
-            {suggestion}
-          </button>
-        ))}
+        <AnimatePresence>
+            {suggestions.map((suggestion) => (
+                <motion.button
+                    key={suggestion}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    type="button"
+                    onClick={() => onSuggestionClick(suggestion)}
+                    className="rounded-full border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-100 transition hover:scale-[1.02] hover:bg-neutral-700"
+                >
+                    {suggestion}
+                </motion.button>
+                
+            ))}
+        </AnimatePresence>
+        
       </div>
     </div>
   );

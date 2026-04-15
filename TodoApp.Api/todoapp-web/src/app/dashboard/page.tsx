@@ -33,35 +33,12 @@ export default function DashboardPage() {
     const [recommendationLoading, setRecommendationLoading] = useState(false);
     const [recommendationWarmingUp, setRecommendationWarmingUp] = useState(false);
 
+    const [transitioningTasks, setTransitioningTasks] = useState<
+        Record<string, "completing" | "uncompleting">
+    >({});
+
     const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
     const [sortBy, setSortBy] = useState<"created" | "dueDate" | "priority">("created");
-
-    const priorityOrder: Record<string, number> = {
-        high: 3,
-        medium: 2,
-        low: 1,
-    };
-
-    const filteredTasks = tasks.
-        filter((task) => {
-            if(filter == "active") return !task.isCompleted;
-            if(filter == "completed") return task.isCompleted;
-            return true;
-        })
-        .sort((a, b) => {
-            if(sortBy === "dueDate"){
-                if(!a.dueDate && !b.dueDate) return 0;
-                if(!a.dueDate) return 1;
-                if(!b.dueDate) return -1;
-                
-                return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-            }
-            if(sortBy === "priority"){
-                return priorityOrder[b.priority] - priorityOrder[a.priority];
-            }
-
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
 
     useEffect(() => {
         const currentToken = getToken();
@@ -174,33 +151,67 @@ export default function DashboardPage() {
     }
 
     async function handleToggleTask(task: TaskItem) {
-        const currentToken = getToken();
+  const currentToken = getToken();
 
-        if (!currentToken) {
-            clearAuthData();
-            router.replace("/login");
-            return;
-        }
+  if (!currentToken) {
+    clearAuthData();
+    router.replace("/login");
+    return;
+  }
 
-        try {
-            const updated = await updateTask(task.id, {
-            isCompleted: !task.isCompleted,
-            }, currentToken);
+  const nextCompleted = !task.isCompleted;
 
-            setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to update task";
+  try {
+    setTransitioningTasks((prev) => ({
+      ...prev,
+      [task.id]: task.isCompleted ? "uncompleting" : "completing",
+    }));
 
-            if (message.includes("401")) {
-            clearAuthData();
-            router.replace("/login");
-            return;
-            }
+    // Fire backend update immediately, but do not rely on returned object for UI
+    const updatePromise = updateTask(
+      task.id,
+      {
+        isCompleted: nextCompleted,
+      },
+      currentToken
+    );
 
-            setError(message);
-            console.error("Toggle task error:", err);
-        }
+    // Keep the visual state for 2 seconds
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Commit the local task state after animation
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id
+          ? { ...t, isCompleted: nextCompleted }
+          : t
+      )
+    );
+
+    // Wait for backend update to finish
+    await updatePromise;
+
+    // Optional: refresh from backend in background to sync fully
+    // await loadTasks();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to update task";
+
+    if (message.includes("401")) {
+      clearAuthData();
+      router.replace("/login");
+      return;
     }
+
+    setError(message);
+    console.error("Toggle task error:", err);
+  } finally {
+    setTransitioningTasks((prev) => {
+      const copy = { ...prev };
+      delete copy[task.id];
+      return copy;
+    });
+  }
+}
 
     async function handleDeleteTask(id: string) {
         const currentToken = getToken();
@@ -404,7 +415,9 @@ export default function DashboardPage() {
                 </div>
 
                 <TaskList
-                    tasks={filteredTasks}
+                    tasks={tasks}
+                    filter={filter}
+                    sortBy={sortBy}
                     loading={loading}
                     editingTaskId={editingTaskId}
                     editingTitle={editingTitle}
@@ -422,6 +435,7 @@ export default function DashboardPage() {
                     setEditingCategory={setEditingCategory}
                     setEditingPriority={setEditingPriority}
                     setEditingDueDate={setEditingDueDate}
+                    transitioningTasks={transitioningTasks}
                 />
             </div>
         </main>
