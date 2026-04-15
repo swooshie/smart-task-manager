@@ -52,6 +52,9 @@ jobs:
 
       - name: Build backend
         run: dotnet build --no-restore
+      
+      - name: Run backend (smoke test)
+        run: dotnet run &
 
   recommender:
     name: Python Recommender check
@@ -82,3 +85,6 @@ jobs:
           USE_TRANSFORMER: "false"
         run:
           python -c "from app.main import app; print('Python service imports successfully')" 
+      
+      - name: Start python service (smoke test)
+        run: uvicorn app.main:app --port 8000 &

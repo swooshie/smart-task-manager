@@ -1,5 +1,7 @@
 # Smart Task Manager
 
+![CI](https://github.com/swooshie/smart-task-manager/actions/workflows/ci.yaml/badge.svg)
+
 [Live App](https://smart-task-manager-ashy.vercel.app/)
 
 Smart Task Manager is a full-stack AI-powered task management application inspired by Apple Reminders. It supports authenticated task management, task organization, and intelligent task suggestions powered by a custom recommendation service.
@@ -42,9 +44,34 @@ The project is designed as a production-style distributed system rather than a s
 
 ### Deployment
 
-- Vercel for the frontend
-- Render for backend services
-- cron-job.org for keep-alive pings
+- Vercel for the frontend (automatic GitHub-based deployment)
+- Render for backend services (.NET API and Python recommender)
+- GitHub Actions for CI validation and deployment orchestration
+- cron-job.org for keep-alive pings to prevent cold starts on free-tier infrastructure
+
+## CI/CD
+
+The project uses a GitHub Actions pipeline to validate and deploy all services automatically.
+
+On every push to the main branch:
+
+- The frontend is installed and built using Node.js to ensure UI integrity.
+- The ASP.NET Core backend is restored and compiled to validate API correctness.
+- The Python recommendation service dependencies are installed and validated to ensure the ML service boots successfully.
+
+After successful validation:
+
+- The .NET backend and Python recommendation service are automatically deployed using Render deploy hooks.
+- The frontend is automatically deployed via Vercel’s GitHub integration.
+
+This setup ensures that only passing builds are deployed, providing a production-style CI/CD workflow across multiple services.
+
+The pipeline demonstrates:
+
+- Multi-service validation in a monorepo
+- Automated deployments triggered by CI success
+- Separation of CI (GitHub Actions) and CD (Render + Vercel)
+- Production-oriented workflow design
 
 ## Architecture
 
@@ -108,6 +135,7 @@ This caused two practical problems:
 
 - Slow first requests
 - Temporary gateway failures while services were waking up
+- This constraint required infrastructure-level solutions to ensure consistent demo reliability despite free-tier limitations.
 
 For a recruiter-facing demo, this matters because the first impression depends on the app responding consistently.
 
@@ -142,9 +170,9 @@ The recommendation feature cannot be allowed to break core task management. Task
 
 ### Keep-Alive Strategy
 
-cron-job.org is used to ping health endpoints every 5 minutes.
+cron-job.org is used to periodically ping health endpoints every 5 minutes.
 
-This reduces cold starts by keeping deployed services active during demo periods. It is not a replacement for paid always-on infrastructure, but it is a pragmatic solution for a portfolio project deployed on free-tier services.
+This prevents Render services from going idle, reducing cold-start latency and ensuring that the application remains responsive during recruiter demos and evaluations.
 
 ### Lightweight Recommendation Engine
 
@@ -313,3 +341,5 @@ Strict confirmation is simpler from a consistency perspective, but it makes the 
 Smart Task Manager demonstrates a production-oriented full-stack system with authentication, persistent storage, caching, distributed service communication, and a practical ML recommendation pipeline.
 
 The main engineering focus is not just building task CRUD, but handling the real constraints that appear when deploying a multi-service application: cold starts, memory limits, network failures, latency, caching, and graceful degradation.
+
+The system also includes a complete CI/CD pipeline with automated validation and deployment across all services, reflecting real-world production engineering practices.
