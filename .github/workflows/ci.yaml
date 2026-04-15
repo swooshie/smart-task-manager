@@ -81,4 +81,4 @@ jobs:
         env:
           USE_TRANSFORMER: "false"
         run:
-          python -c "form app.main import app; print('Python service imports successfully')" 
+          python -c "from app.main import app; print('Python service imports successfully')" 
