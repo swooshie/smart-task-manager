@@ -58,6 +58,7 @@ export default function TaskItem({
   transitionState
 }: TaskItemProps) {
     const visuallyCompleted = task.isCompleted || transitionState === "completing";
+    // const visuallyCompleted = task.isCompleted;
   if (isEditing) {
     return (
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
@@ -95,10 +96,16 @@ export default function TaskItem({
             </select>
 
             <input
-              className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none"
-              type="date"
-              value={editingDueDate}
-              onChange={(e) => setEditingDueDate(e.target.value)}
+                className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none"
+                type="date"
+                value={editingDueDate}
+                onChange={(e) => setEditingDueDate(e.target.value)}
+                onClick={(e) => {
+                    const input = e.currentTarget;
+                    if (input.showPicker) {
+                        input.showPicker();
+                    }
+                }}
             />
           </div>
 

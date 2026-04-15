@@ -75,6 +75,12 @@ export default function AddTaskInput({
             type="date"
             value={dueDate}
             onChange={(e) => onDueDateChange(e.target.value)}
+            onClick={(e) => {
+                const input = e.currentTarget;
+                if (input.showPicker) {
+                    input.showPicker();
+                }
+            }}
           />
         </div>
       </div>
