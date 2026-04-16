@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api";
 import { saveAuthData } from "@/lib/auth";
 import AuthCard from "@/components/AuthCard";
+import DemoNoticeModal from "@/components/DemoNoticeModel";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -12,6 +13,15 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+
+    const [showDemoNotice, setShowDemoNotice] = useState(false);
+
+    useEffect(() => {
+        const hasSeen = localStorage.getItem("seenDemoNotice");
+        if(!hasSeen){
+            setShowDemoNotice(true);
+        }
+    });
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -29,6 +39,7 @@ export default function LoginPage() {
     }
 
     return (
+    <>
         <AuthCard
         title="Login"
         subtitle="Stay organized with tasks, suggestions, and reminders."
@@ -62,6 +73,16 @@ export default function LoginPage() {
             />
         </div>
         </AuthCard>
+
+        <DemoNoticeModal 
+            open={showDemoNotice}
+            onClose={() => {
+                localStorage.setItem("seenDemoNotice", "true");
+                setShowDemoNotice(false);
+            }}
+        />
+    </>
+        
     );
     
 }
