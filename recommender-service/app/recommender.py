@@ -58,7 +58,7 @@ def compute_similarity_transformer(
 def compute_similarity_tfidf(
     query: str,
     candidate_texts: list[str],
-    user_tasks_clean: list[str]
+    user_tasks_clean: list[str],
 ):
     corpus = [query] + candidate_texts
     vectorizer = TfidfVectorizer(stop_words="english")
@@ -69,8 +69,6 @@ def compute_similarity_tfidf(
 
     base_similarities = cosine_similarity(query_vector, candidate_vectors)[0]
 
-    user_task_vectors = None
-
     if user_tasks_clean:
         user_corpus = candidate_texts + user_tasks_clean
         user_vectorizer = TfidfVectorizer(stop_words="english")
@@ -80,6 +78,8 @@ def compute_similarity_tfidf(
         user_task_vectors = user_matrix[len(candidate_texts):]
 
         return base_similarities, candidate_vectors_for_user, user_task_vectors
+
+    return base_similarities, candidate_vectors, None
     
 def get_recommendations(request: RecommendationRequest) -> RecommendationResponse:
     query = f"{request.title}. {request.description or ''}".strip()
