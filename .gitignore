@@ -1,2 +1,5 @@
 bin
 obj
+TodoApp.Api/appsettings.Secrets.json
+AGENTS.md
+agent_docs/

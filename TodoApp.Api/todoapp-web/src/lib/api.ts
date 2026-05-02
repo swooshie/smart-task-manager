@@ -1,10 +1,17 @@
 import {
     AuthResponse,
+    CreateSavedPlaceRequest,
     CreateTaskRequest,
+    LinqPhoneNumber,
     LoginRequest,
+    LocationReminderResult,
+    SavedPlace,
     SignupRequest,
+    SimulateLocationEventRequest,
     TaskItem,
+    UpsertUserPhoneLinkRequest,
     UpdateTaskRequest,
+    UserPhoneLink,
     RecommendationRequest,
     RecommendationResponse
 } from "@/lib/types";
@@ -122,4 +129,69 @@ export async function getRecommendations(request: RecommendationRequest, token: 
         body: JSON.stringify(request),
     });
     return handleResponse<RecommendationResponse>(response);
+}
+
+export async function getMyPhoneLink(token: string): Promise<UserPhoneLink> {
+    const response = await fetch(`${API_BASE_URL}/api/phone-links/me`, {
+        headers: getAuthHeaders(token),
+    });
+    return handleResponse<UserPhoneLink>(response);
+}
+
+export async function upsertMyPhoneLink(
+    request: UpsertUserPhoneLinkRequest,
+    token: string
+): Promise<UserPhoneLink> {
+    const response = await fetch(`${API_BASE_URL}/api/phone-links/me`, {
+        method: "PUT",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(request),
+    });
+    return handleResponse<UserPhoneLink>(response);
+}
+
+export async function getAvailableLines(token: string): Promise<LinqPhoneNumber[]> {
+    const response = await fetch(`${API_BASE_URL}/api/phone-links/available-lines`, {
+        headers: getAuthHeaders(token),
+    });
+    return handleResponse<LinqPhoneNumber[]>(response);
+}
+
+export async function getPlaces(token: string): Promise<SavedPlace[]> {
+    const response = await fetch(`${API_BASE_URL}/api/places`, {
+        headers: getAuthHeaders(token),
+    });
+    return handleResponse<SavedPlace[]>(response);
+}
+
+export async function createPlace(
+    request: CreateSavedPlaceRequest,
+    token: string
+): Promise<SavedPlace> {
+    const response = await fetch(`${API_BASE_URL}/api/places`, {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(request),
+    });
+    return handleResponse<SavedPlace>(response);
+}
+
+export async function deletePlace(id: string, token: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/places/${id}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(token),
+    });
+    return handleResponse<void>(response);
+}
+
+export async function simulateLocationEvent(
+    request: SimulateLocationEventRequest,
+    token: string
+): Promise<LocationReminderResult> {
+    const response = await fetch(`${API_BASE_URL}/api/location-events/simulate`, {
+        method: "POST",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(request),
+    });
+    return handleResponse<LocationReminderResult>(response);
 }

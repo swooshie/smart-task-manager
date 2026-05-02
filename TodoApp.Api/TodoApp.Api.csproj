@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>smart-task-manager-linq-local</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
