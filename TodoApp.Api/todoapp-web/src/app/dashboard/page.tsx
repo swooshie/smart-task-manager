@@ -98,6 +98,10 @@ export default function DashboardPage() {
         }
     );
 
+    const refreshTasksOnReturn = useEffectEvent(() => {
+        loadTasks();
+    });
+
     useEffect(() => {
         const currentToken = getToken();
         const storedName = getUserName() ?? "";
@@ -123,6 +127,26 @@ export default function DashboardPage() {
 
         return () => clearTimeout(timeout);
     }, [title, description, category]);
+
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                refreshTasksOnReturn();
+            }
+        };
+
+        const handleWindowFocus = () => {
+            refreshTasksOnReturn();
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        window.addEventListener("focus", handleWindowFocus);
+
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("focus", handleWindowFocus);
+        };
+    }, []);
 
     useEffect(() => {
         if (!locationResult) {
@@ -698,6 +722,13 @@ export default function DashboardPage() {
                     onSubmit={handleCreateTask}
                 />
 
+                <SuggestionsBar
+                suggestions={suggestions}
+                loading={recommendationLoading}
+                warmingUp={recommendationWarmingUp}
+                onSuggestionClick={handleCreateFromSuggestion}
+                />
+
                 <section className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                         <div>
@@ -932,13 +963,6 @@ export default function DashboardPage() {
                         )}
                     </div>
                 </section>
-
-                <SuggestionsBar
-                suggestions={suggestions}
-                loading={recommendationLoading}
-                warmingUp={recommendationWarmingUp}
-                onSuggestionClick={handleCreateFromSuggestion}
-                />
 
                 {error ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
