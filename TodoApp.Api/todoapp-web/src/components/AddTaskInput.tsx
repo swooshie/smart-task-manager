@@ -86,9 +86,9 @@ export default function AddTaskInput({
             <option value="high">High priority</option>
           </select>
 
-          <div className="relative">
-            <input
-              className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 pr-11 text-sm text-white outline-none"
+            <div className="relative">
+              <input
+              className="date-input w-full min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 pr-11 text-sm text-white outline-none"
               type="date"
               value={dueDate}
               onChange={(e) => onDueDateChange(e.target.value)}
