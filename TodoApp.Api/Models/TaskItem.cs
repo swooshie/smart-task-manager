@@ -20,6 +20,10 @@ public class TaskItem
     public string Priority { get; set; } = "medium";
     [BsonElement("category")]
     public string? Category { get; set; }
+    [BsonElement("placeId")]
+    public string? PlaceId { get; set; }
+    [BsonElement("locationReminderEnabled")]
+    public bool LocationReminderEnabled { get; set; }
     [BsonElement("dueDate")]
     public DateTime? DueDate { get; set; }
     [BsonElement("isComplete")]

@@ -19,7 +19,7 @@ export default function SuggestionsBar({
     return (
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
         <p className="text-sm text-neutral-400">
-          {warmingUp ? "Suggestions are warming up..." : "Thinking..."}
+          {warmingUp ? "Warming up..." : "Thinking..."}
         </p>
       </div>
     );
@@ -28,14 +28,14 @@ export default function SuggestionsBar({
   if (suggestions.length === 0) {
     return (
       <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
-        <p className="text-sm text-neutral-400">No strong suggestions right now</p>
+        <p className="text-sm text-neutral-400">No suggestions right now</p>
       </div>
     );
   }
 
   return (
     <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
-      <p className="mb-3 text-sm font-medium text-neutral-200">Suggested tasks</p>
+      <p className="mb-3 text-sm font-medium text-neutral-200">Suggestions</p>
 
       <div className="flex flex-wrap gap-2">
         <AnimatePresence>

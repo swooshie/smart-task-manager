@@ -10,5 +10,7 @@ public class CreateTaskRequest
     public string? Description { get; set; }
     public string Priority { get; set; } = "medium"; // Default priority
     public string? Category { get; set; }
+    public string? PlaceId { get; set; }
+    public bool LocationReminderEnabled { get; set; }
     public DateTime? DueDate { get; set; }
 }

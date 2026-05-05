@@ -10,8 +10,8 @@ using TodoApp.Api.Services.Interfaces;
 using StackExchange.Redis;
 using Microsoft.Extensions.Options;
 
-
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -54,6 +54,8 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
 builder.Services.AddSingleton<MongoDbContext>();
+builder.Services.Configure<LinqSettings>(builder.Configuration.GetSection("Linq"));
+builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("Telegram"));
 
 // redis configuration
 
@@ -70,6 +72,19 @@ builder.Services.AddScoped<ICacheService, CacheService>();
 
 
 builder.Services.Configure<RecommendationServiceSettings>(builder.Configuration.GetSection("RecommendationService"));
+builder.Services.AddHttpClient<ILinqClientService, LinqClientService>((sp, client) =>
+{
+    var settings = sp.GetRequiredService<IOptions<LinqSettings>>().Value;
+    client.BaseAddress = new Uri($"{settings.BaseUrl.TrimEnd('/')}/");
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
+builder.Services.AddHttpClient<ITelegramBotService, TelegramBotService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.telegram.org/");
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
+builder.Services.AddScoped<LinqMessageChannelService>();
+builder.Services.AddScoped<TelegramMessageChannelService>();
 
 builder.Services.AddHttpClient<IRecommendationService, RecommendationService>(client => {
     client.Timeout = TimeSpan.FromSeconds(12);
@@ -100,10 +115,19 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IAuthService, AuthService>(); 
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IUserPhoneLinkService, UserPhoneLinkService>();
+builder.Services.AddScoped<ILinqInboundMessageService, LinqInboundMessageService>();
+builder.Services.AddScoped<ILinqWebhookService, LinqWebhookService>();
+builder.Services.AddScoped<ISavedPlaceService, SavedPlaceService>();
+builder.Services.AddScoped<ILocationReminderService, LocationReminderService>();
+builder.Services.AddScoped<IMessageDispatchService, MessageDispatchService>();
+builder.Services.AddScoped<ITelegramWebhookService, TelegramWebhookService>();
 
 // register repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+builder.Services.AddScoped<IUserPhoneLinkRepository, UserPhoneLinkRepository>();
+builder.Services.AddScoped<ISavedPlaceRepository, SavedPlaceRepository>();
 
 // add frontend
 

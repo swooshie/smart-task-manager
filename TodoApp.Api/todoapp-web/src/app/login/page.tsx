@@ -21,7 +21,7 @@ export default function LoginPage() {
         if(!hasSeen){
             setShowDemoNotice(true);
         }
-    });
+    }, []);
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();

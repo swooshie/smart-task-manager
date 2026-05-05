@@ -19,4 +19,6 @@ public class MongoDbContext
 
     public IMongoCollection<TaskItem> Tasks => _database.GetCollection<TaskItem>(_settings.TasksCollectionName);
     public IMongoCollection<User> Users => _database.GetCollection<User>(_settings.UsersCollectionName);
+    public IMongoCollection<UserPhoneLink> UserPhoneLinks => _database.GetCollection<UserPhoneLink>(_settings.UserPhoneLinksCollectionName);
+    public IMongoCollection<SavedPlace> SavedPlaces => _database.GetCollection<SavedPlace>(_settings.SavedPlacesCollectionName);
 }

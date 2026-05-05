@@ -1,2 +1,7 @@
 bin
 obj
+TodoApp.Api/appsettings.Secrets.json
+AGENTS.md
+agent_docs/
+video-demo-script.txt
+submission-note.txt

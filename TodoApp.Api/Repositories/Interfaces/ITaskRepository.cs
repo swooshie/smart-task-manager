@@ -8,5 +8,6 @@ public interface ITaskRepository
     Task<TaskItem> GetByIdAsync(string id);
     Task CreateAsync(TaskItem task);
     Task UpdateAsync(TaskItem task);
+    Task ClearPlaceReferencesAsync(string userId, string placeId);
     Task DeleteAsync(string id);
 }
