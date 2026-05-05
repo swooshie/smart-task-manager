@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import {
     createPlace,
     createTask,
@@ -516,7 +517,7 @@ export default function DashboardPage() {
             (geoError) => {
                 setLocationCaptureMessage(
                     geoError.code === geoError.PERMISSION_DENIED
-                        ? "Location permission was denied."
+                        ? "Location access is off. Enable it in your browser settings."
                         : "Could not read your current location."
                 );
                 setCapturingLocation(false);
@@ -648,7 +649,7 @@ export default function DashboardPage() {
                             reminderSent: false,
                             message:
                                 geoError.code === geoError.PERMISSION_DENIED
-                                    ? "Location permission was denied."
+                                    ? "Location access is off. Enable it in your browser settings."
                                     : "Could not read your current location.",
                         });
                     }
@@ -941,7 +942,8 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button
+                    <motion.button
+                        whileTap={{ scale: 0.94 }}
                         type="button"
                         onClick={() => setPlacesOpen(true)}
                         className="rounded-2xl border border-neutral-800 bg-neutral-900 p-2.5 text-neutral-200 shadow-sm transition hover:bg-neutral-800"
@@ -958,8 +960,9 @@ export default function DashboardPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-4.35 6-10a6 6 0 1 0-12 0c0 5.65 6 10 6 10Z" />
                             <circle cx="12" cy="11" r="2.5" />
                         </svg>
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
+                        whileTap={{ scale: 0.94 }}
                         type="button"
                         onClick={() => setSettingsOpen(true)}
                         className="rounded-2xl border border-neutral-800 bg-neutral-900 p-2.5 text-neutral-200 shadow-sm transition hover:bg-neutral-800"
@@ -980,7 +983,7 @@ export default function DashboardPage() {
                             />
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                         </svg>
-                    </button>
+                    </motion.button>
 
                     <button
                         onClick={handleLogout}
@@ -1103,15 +1106,28 @@ export default function DashboardPage() {
                 />
             </div>
 
+            <AnimatePresence>
             {settingsOpen ? (
-                <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm">
+                <motion.div
+                    className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                >
                     <button
                         type="button"
                         aria-label="Close settings"
                         onClick={() => setSettingsOpen(false)}
                         className="flex-1 cursor-default"
                     />
-                    <aside className="h-full w-full max-w-md overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5 shadow-2xl">
+                    <motion.aside
+                        className="h-full w-full max-w-md overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5 shadow-2xl"
+                        initial={{ x: 32, opacity: 0.85 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: 32, opacity: 0.85 }}
+                        transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                    >
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs uppercase tracking-[0.22em] text-neutral-500">Settings</p>
@@ -1302,12 +1318,20 @@ export default function DashboardPage() {
                                 </>
                             )}
                         </div>
-                    </aside>
-                </div>
+                    </motion.aside>
+                </motion.div>
             ) : null}
+            </AnimatePresence>
 
+            <AnimatePresence>
             {placesOpen ? (
-                <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm">
+                <motion.div
+                    className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                >
                     <button
                         type="button"
                         aria-label="Close places"
@@ -1317,7 +1341,13 @@ export default function DashboardPage() {
                         }}
                         className="flex-1 cursor-default"
                     />
-                    <aside className="h-full w-full max-w-2xl overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5 shadow-2xl">
+                    <motion.aside
+                        className="h-full w-full max-w-2xl overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5 shadow-2xl"
+                        initial={{ x: 40, opacity: 0.85 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: 40, opacity: 0.85 }}
+                        transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                    >
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs uppercase tracking-[0.22em] text-neutral-500">Places</p>
@@ -1480,9 +1510,10 @@ export default function DashboardPage() {
                                 )}
                             </div>
                         </div>
-                    </aside>
-                </div>
+                    </motion.aside>
+                </motion.div>
             ) : null}
+            </AnimatePresence>
         </main>
     );
 }
