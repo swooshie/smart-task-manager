@@ -71,7 +71,7 @@ public class TelegramWebhookService : ITelegramWebhookService
         {
             await TrySendReplyAsync(
                 chatId,
-                "I couldn't match this Telegram account yet. Link it in the app first, then send HELP."
+                $"I couldn't match @{username.Trim().TrimStart('@')} to a saved profile. Save this exact Telegram username in the app, then send HELP again."
             );
             return;
         }
