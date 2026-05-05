@@ -253,11 +253,6 @@ export default function PlacePickerMapInner({
           zoom={13}
           scrollWheelZoom
           className="h-72 w-full"
-          whenReady={(event) => {
-            window.setTimeout(() => {
-              event.target.invalidateSize();
-            }, 0);
-          }}
         >
           <MapResizeFix />
 
