@@ -89,6 +89,16 @@ export default function DashboardPage() {
     const [reportingCurrentLocation, setReportingCurrentLocation] = useState(false);
     const [locationResult, setLocationResult] = useState<LocationReminderResult | null>(null);
     const locationPollIntervalRef = useRef<number | null>(null);
+    const hasSavedMessagingIdentity = Boolean(
+        phoneLink?.preferredChannel === "telegram"
+            ? phoneLink?.telegramUsername
+            : phoneLink?.phoneNumber
+    );
+    const messagingStatusLabel = phoneLink?.hasInitiatedConversation
+        ? "Active"
+        : hasSavedMessagingIdentity
+            ? "Waiting"
+            : "Not connected";
     const initializeDashboard = useEffectEvent(() => {
         loadTasks();
         loadPhoneLink();
@@ -1158,12 +1168,17 @@ export default function DashboardPage() {
                                 {phoneLink?.hasInitiatedConversation ? (
                                     <span className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-300">
                                         <span className="h-2 w-2 rounded-full bg-green-400" />
-                                        Active
+                                        {messagingStatusLabel}
+                                    </span>
+                                ) : hasSavedMessagingIdentity ? (
+                                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+                                        <span className="h-2 w-2 rounded-full bg-amber-400" />
+                                        {messagingStatusLabel}
                                     </span>
                                 ) : (
                                     <span className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300">
                                         <span className="h-2 w-2 rounded-full bg-red-400" />
-                                        Not connected
+                                        {messagingStatusLabel}
                                     </span>
                                 )}
                             </div>
@@ -1177,12 +1192,20 @@ export default function DashboardPage() {
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div>
                                             <p className="text-sm font-medium text-white">
-                                                {phoneLink.hasInitiatedConversation ? "Messaging is live" : "Messaging is saved"}
+                                                {phoneLink.hasInitiatedConversation
+                                                    ? "Messaging is live"
+                                                    : hasSavedMessagingIdentity
+                                                        ? "Messaging is waiting"
+                                                        : "Messaging is not set up"}
                                             </p>
                                             <p className="mt-1 text-sm text-neutral-400">
                                                 {phoneLink.preferredChannel === "telegram"
-                                                    ? `@${phoneLink.telegramUsername} is connected on Telegram`
-                                                    : `${phoneLink.phoneNumber} is connected by text`}
+                                                    ? phoneLink.hasInitiatedConversation
+                                                        ? `@${phoneLink.telegramUsername} is connected on Telegram`
+                                                        : `@${phoneLink.telegramUsername} is saved and waiting for a first message`
+                                                    : phoneLink.hasInitiatedConversation
+                                                        ? `${phoneLink.phoneNumber} is connected by text`
+                                                        : `${phoneLink.phoneNumber} is saved and waiting for a first text`}
                                             </p>
                                         </div>
 
@@ -1202,7 +1225,7 @@ export default function DashboardPage() {
                                                 {phoneLink.hasInitiatedConversation
                                                     ? "Inbound thread established"
                                                     : preferredChannel === "telegram"
-                                                        ? `Send HELP to @${TELEGRAM_BOT_USERNAME} to finish linking`
+                                                        ? `Open @${TELEGRAM_BOT_USERNAME} and send HELP to finish linking`
                                                         : "Send a first text to finish linking"}
                                             </p>
                                         </div>
@@ -1216,7 +1239,7 @@ export default function DashboardPage() {
 
                                         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
                                             <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Commands</p>
-                                            <p className="mt-2 text-sm text-neutral-200">LIST, ADD, DONE, DELETE, SNOOZE</p>
+                                            <p className="mt-2 text-sm text-neutral-200">HELP, LIST, ADD, DONE, DELETE, SNOOZE</p>
                                         </div>
                                     </div>
                                 </div>
