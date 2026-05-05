@@ -110,7 +110,7 @@ export default function TaskItem({
 
             <div className="relative">
               <input
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 pr-11 text-white outline-none"
+                  className="date-input w-full min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 pr-11 text-white outline-none"
                   type="date"
                   value={editingDueDate}
                   onChange={(e) => setEditingDueDate(e.target.value)}
