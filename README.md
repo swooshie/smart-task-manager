@@ -4,44 +4,91 @@
 
 [Live App](https://smart-task-manager-ashy.vercel.app/)
 
-Smart Task Manager is a full-stack productivity application that combines task management, AI-assisted suggestions, and a location-aware messaging workflow.
+Smart Task Manager is a full-stack productivity app with AI suggestions, task-linked places, and chat-based task actions. The current product uses a `Next.js` frontend, an `ASP.NET Core` API, `MongoDB`, `Redis`, and a Python recommendation service. Messaging is Telegram-first, with Linq retained as an optional text-based fallback.
 
-The project started as a distributed task manager with a `Next.js` frontend, `ASP.NET Core` backend, `MongoDB`, `Redis`, and a Python recommendation service. It was then extended for a Linq technical assessment into a context-aware assistant where iMessage acts as the action layer for tasks.
+## Overview
 
-The result is a system where users can:
+The app is built around a simple idea:
 
 - manage tasks in the web app
-- interact with tasks through Linq-powered messaging
-- receive location-aware reminders when they are near a relevant saved place
-- complete or snooze those reminders directly from the chat thread
+- optionally link a task to a place
+- keep messaging connected for quick actions
+- let the app send a contextual reminder when you are near that place
+- complete or snooze that task from chat
 
-## What It Demonstrates
+This keeps the web app as the control surface and messaging as the action surface.
 
-- full-stack application development
-- distributed backend architecture
-- JWT authentication and protected APIs
-- microservice integration
-- applied ML recommendations
-- webhook-based messaging workflows
-- location-aware reminder decisioning
-- product-focused UX thinking under real platform constraints
+## Core Features
 
-## Current Product Story
+### Tasks
 
-The web app is the control surface.
-Messaging is the low-friction action surface.
+- JWT-based auth
+- task CRUD
+- priorities, categories, due dates
+- active/completed task views
+- filtering and sorting
 
-Example flow:
+### AI Suggestions
 
-1. A user creates a task like `Groceries` with category `groceries`
-2. The user links their phone number to a Linq sandbox line
-3. The user saves a place like `Trader Joe's`
-4. A location event indicates the user is near that place
-5. The backend decides whether the reminder is relevant
-6. The user receives a message such as:
-   `You're near Trader Joe's and still have "Groceries" open. Reply DONE, SNOOZE 30, or LIST.`
-7. The user replies from the thread
-8. The task is updated in the app
+- live task suggestions while typing
+- Python recommendation service using TF-IDF similarity
+- Redis-backed caching
+- graceful fallback if the recommender is unavailable
+
+### Places
+
+- reusable saved places
+- browser current-location capture
+- OpenStreetMap search
+- click-to-pin map selection
+- optional place category metadata
+
+### Location-Aware Reminders
+
+- tasks can be linked directly to a saved place
+- reminders are triggered only for tasks linked to the nearby place
+- multiple linked tasks at the same place are grouped into one reminder
+- supports `DONE <number>`, `DONE ALL`, `SNOOZE 30`, and `LIST`
+
+### Messaging
+
+- Telegram bot as the primary free channel
+- Linq-supported text/iMessage-style fallback
+- inbound command handling
+- outbound reminder sending
+- explicit provider-specific failure messages when Telegram or Linq is unavailable
+
+## Product Flow
+
+1. Link messaging in the app.
+2. Create a place such as `Office` or `Trader Joe's`.
+3. Create a task and enable `Location`.
+4. Attach that task to the saved place.
+5. Keep the dashboard open.
+6. The app checks location periodically while active.
+7. When you are near the linked place, a reminder is sent through chat.
+8. Reply from chat to complete or snooze the task.
+
+## Messaging Commands
+
+- `HELP`
+- `LIST`
+- `ADD <task>`
+- `DONE`
+- `DONE <number>`
+- `DONE ALL`
+- `DELETE <number>`
+- `SNOOZE 30`
+
+## How Location Works
+
+This version is web-first.
+
+- the app checks location while the dashboard is open and visible
+- it currently checks every 30 seconds
+- if the page is inactive or closed, those checks stop
+
+That is an intentional browser constraint. True background geofencing would require a native mobile app or deeper mobile platform support.
 
 ## Tech Stack
 
@@ -52,142 +99,58 @@ Example flow:
 - TypeScript
 - Tailwind CSS
 - Framer Motion
-- Leaflet + OpenStreetMap for saved-place selection
+- Leaflet
+- OpenStreetMap / Nominatim
 
 ### Backend
 
 - ASP.NET Core Web API
 - .NET 10
-- JWT authentication
+- JWT auth
 - service + repository architecture
-- Linq webhook and messaging integration
+- Telegram webhook integration
+- Linq webhook integration
 
-### Data Layer
+### Data and Caching
 
 - MongoDB
-- MongoDB C# driver
-
-### Caching
-
 - Redis
-- recommendation caching
-- temporary reminder context + snooze state
 
 ### Recommendation Service
 
 - Python
 - FastAPI
 - scikit-learn
-- TF-IDF similarity engine
-
-## Core Features
-
-### Task Management
-
-- signup and login with JWT auth
-- authenticated task CRUD
-- priorities
-- categories
-- due dates
-- completion tracking
-- filtering and sorting
-
-### AI Assistance
-
-- live task suggestions while typing
-- recommendation scoring based on input and user task history
-- Redis caching for repeated recommendation requests
-- graceful fallback when the recommender is unavailable
-
-### Messaging Workflow
-
-- phone number linking to a Linq sandbox line
-- inbound-first chat flow
-- webhook-driven message handling
-- text commands:
-  - `HELP`
-  - `LIST`
-  - `ADD <task>`
-  - `DONE <number>`
-  - `DELETE <number>`
-  - `DONE`
-  - `SNOOZE 30`
-
-### Location Awareness
-
-- saved places with categories and radius
-- current-location capture from the browser
-- map-based place search using OpenStreetMap
-- click-to-pin place selection on a map
-- simulated arrival events for demo/testing
-- contextual reminder sending only when place + task match strongly enough
 
 ## Architecture
 
-Smart Task Manager uses a service-oriented architecture with clear ownership boundaries.
-
-### Next.js Frontend
+### Frontend
 
 Responsible for:
 
 - auth flows
-- dashboard UX
-- task interactions
+- task creation and editing
+- place creation and editing
 - messaging setup
-- saved-place setup
-- current-location and map-assisted place selection
-- simulated location events for the demo
+- active location reporting while the app is open
 
-### ASP.NET Core Backend
+### API
 
 Responsible for:
 
-- authentication and authorization
-- task CRUD
-- MongoDB access
-- Redis caching
-- recommendation orchestration
-- Linq webhook ingestion
-- inbound command parsing
-- outbound message sending
-- location-aware reminder decisioning
+- auth and protected APIs
+- task and place persistence
+- reminder decisioning
+- message dispatch
+- Telegram and Linq webhook handling
+- temporary reminder context and snooze state
 
-### Python Recommendation Service
+### Recommendation Service
 
 Responsible for:
 
-- suggestion generation
-- TF-IDF ranking
-- combining task input with user task history
-
-## Messaging and Location Flow
-
-### Inbound Messaging
-
-1. User sends a message to the Linq sandbox number
-2. Linq sends a webhook to the backend
-3. Backend maps the phone number to the app user
-4. Backend parses the command
-5. Backend sends a reply into the same chat thread
-
-### Contextual Reminder Flow
-
-1. User saves a place tied to a task category
-2. A location event is received
-3. Backend checks whether the user is inside a saved place radius
-4. Backend ranks open tasks against that place context
-5. Backend sends a single high-signal reminder if a match is strong enough
-6. User can reply `DONE` or `SNOOZE 30`
-
-## Why `Simulate arrival` Exists
-
-For the Linq assessment, the system uses a manual `Simulate arrival` trigger in the dashboard.
-
-That is a demo trigger, not the intended long-term UX.
-
-It exists so the same backend workflow can be demonstrated reliably without needing a native mobile app or background GPS pipeline during the assessment.
-
-In a real product, the location event would be generated automatically from a real client location update.
+- generating suggestion candidates
+- ranking likely follow-up tasks
 
 ## Project Structure
 
@@ -196,7 +159,6 @@ smart-task-manager/
 ├── TodoApp.Api/
 │   ├── Configuration/
 │   ├── Controllers/
-│   ├── Data/
 │   ├── DTOs/
 │   ├── Models/
 │   ├── Repositories/
@@ -208,13 +170,12 @@ smart-task-manager/
 ├── recommender-service/
 │   ├── app/
 │   └── requirements.txt
-├── agent_docs/
 └── README.md
 ```
 
-## Running Locally
+## Run Locally
 
-### 1. Start the Backend
+### 1. Backend
 
 ```bash
 cd TodoApp.Api
@@ -222,11 +183,9 @@ dotnet restore
 dotnet run
 ```
 
-Backend runs on:
+Runs on `http://localhost:5021`
 
-- `http://localhost:5021`
-
-### 2. Start the Frontend
+### 2. Frontend
 
 ```bash
 cd TodoApp.Api/todoapp-web
@@ -234,11 +193,9 @@ npm install
 npm run dev
 ```
 
-Frontend runs on:
+Runs on `http://localhost:3000`
 
-- `http://localhost:3000`
-
-### 3. Start the Recommendation Service
+### 3. Recommendation Service
 
 ```bash
 cd recommender-service
@@ -246,122 +203,53 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Recommendation service runs on:
+Runs on `http://localhost:8000`
 
-- `http://localhost:8000`
+## Telegram Setup
+
+Create a bot with BotFather and configure:
+
+- `Telegram:BotToken`
+- `Telegram:BotUsername`
+- optional `Telegram:WebhookSecret`
+
+Then expose the API publicly and point Telegram to:
+
+```text
+POST /api/telegram/webhook
+```
+
+Users link their Telegram username in the app, open the bot, and send `HELP` once to establish the thread.
 
 ## Linq Setup
 
-The Linq integration expects:
+Linq is optional in the current product and mainly useful as a legacy text-based path.
 
-- a Linq API key
-- a sandbox sender number
-- a public webhook URL pointing to:
-  - `/api/linq/webhook`
+Configure:
 
-Recommended local secret file:
+- `Linq:ApiKey`
+- `Linq:DefaultFromPhoneNumber`
+- optional `Linq:WebhookSecret`
 
-- `TodoApp.Api/appsettings.Secrets.json`
-
-Example:
-
-```json
-{
-  "Linq": {
-    "ApiKey": "YOUR_API_KEY",
-    "DefaultFromPhoneNumber": "+13214298512",
-    "WebhookSecret": "OPTIONAL_WEBHOOK_SECRET"
-  }
-}
-```
-
-To test inbound messaging locally, expose the backend with a tunnel such as `ngrok` and register:
+Expose the API publicly and point Linq to:
 
 ```text
-https://your-public-url/api/linq/webhook
+POST /api/linq/webhook
 ```
 
-The key event required for the app is:
+## Build Checks
 
-- `message.received`
+From the frontend project:
 
-## Environment Variables
-
-### Backend
-
-```text
-JwtSettings__SecretKey
-MongoDbSettings__ConnectionString
-RedisSettings__ConnectionString
-RecommendationService__BaseUrl
-Linq__ApiKey
-Linq__DefaultFromPhoneNumber
-Linq__WebhookSecret
+```bash
+npm run lint
+npm run build
 ```
 
-### Frontend
+From the backend project:
 
-```text
-NEXT_PUBLIC_API_BASE_URL
+```bash
+dotnet build
 ```
 
-### Python Recommendation Service
-
-```text
-USE_TRANSFORMER=false
-```
-
-## Assessment Demo Flow
-
-Recommended flow:
-
-1. Open the dashboard
-2. Show that the phone is linked and messaging is live
-3. Show a task with a meaningful category
-4. Show a saved place selected from the map or current location
-5. Send `LIST` from the phone
-6. Trigger `Simulate arrival`
-7. Show the location-aware reminder message
-8. Reply `DONE`
-9. Refresh the dashboard and show the task completed
-
-## Design Tradeoffs
-
-### Linq Instead of Building a Native Messaging Client
-
-Linq made it possible to focus on workflow design, webhook handling, and contextual reminders without building an entire messaging transport from scratch.
-
-### Simulated Location Instead of Full Background Tracking
-
-For the assessment, reliability and demo clarity mattered more than building a native mobile location pipeline in limited time.
-
-### TF-IDF Instead of Heavier ML Models
-
-TF-IDF is cheaper, faster, and more reliable in constrained environments than transformer-based models for this project.
-
-### Category-Based Place Matching
-
-Using task categories for place association makes the reminder signal more deterministic and easier to reason about than trying to infer everything from raw text alone.
-
-## Future Improvements
-
-- real location-event ingestion instead of manual simulation
-- native mobile or PWA workflow for better background location support
-- Telegram or another free long-term messaging channel after Linq sandbox expiry
-- better reminder ranking and throttling
-- recent activity / reminder history panel
-- stronger test coverage
-- cleanup of remaining nullable warnings in the .NET codebase
-
-## Summary
-
-Smart Task Manager is no longer just a CRUD todo app with suggestions.
-
-It is a full-stack, distributed, context-aware productivity system that combines:
-
-- task management
-- AI-assisted suggestions
-- webhook-based chat interactions
-- location-aware reminder logic
-
-The strongest part of the project is not a single feature. It is the way the pieces work together across frontend UX, backend orchestration, external messaging, caching, and applied recommendation logic.
+These are the same checks most likely to catch CI issues before pushing.
