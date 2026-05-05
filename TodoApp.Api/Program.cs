@@ -9,6 +9,7 @@ using TodoApp.Api.Services;
 using TodoApp.Api.Services.Interfaces;
 using StackExchange.Redis;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: true);
@@ -145,6 +146,35 @@ builder.Services.AddCors(options => {
 });
 
 var app = builder.Build();
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.ContentType = "application/json";
+
+        var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        var statusCode = exception switch
+        {
+            UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
+            ArgumentException => StatusCodes.Status400BadRequest,
+            InvalidOperationException => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        var message = exception switch
+        {
+            UnauthorizedAccessException or ArgumentException or InvalidOperationException => exception?.Message ?? "Request failed.",
+            _ => "Something went wrong on the server."
+        };
+
+        context.Response.StatusCode = statusCode;
+
+        await context.Response.WriteAsync(
+            JsonSerializer.Serialize(new { message })
+        );
+    });
+});
 
 if (app.Environment.IsDevelopment())
 {
