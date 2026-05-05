@@ -120,7 +120,6 @@ export default function TaskList(props: TaskListProps) {
                                     onToggle={props.onToggle}
                                     onDelete={props.onDelete}
                                     onStartEdit={props.onStartEdit}
-                                    onCancelEdit={props.onCancelEdit}
                                     onSaveEdit={props.onSaveEdit}
                                     setEditingTitle={props.setEditingTitle}
                                     setEditingDescription={props.setEditingDescription}
@@ -171,7 +170,6 @@ export default function TaskList(props: TaskListProps) {
                                     onToggle={props.onToggle}
                                     onDelete={props.onDelete}
                                     onStartEdit={props.onStartEdit}
-                                    onCancelEdit={props.onCancelEdit}
                                     onSaveEdit={props.onSaveEdit}
                                     setEditingTitle={props.setEditingTitle}
                                     setEditingDescription={props.setEditingDescription}
