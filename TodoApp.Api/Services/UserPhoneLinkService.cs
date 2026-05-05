@@ -48,7 +48,24 @@ public class UserPhoneLinkService : IUserPhoneLinkService
                 throw new ArgumentException("Telegram username is required.");
             }
 
-            phoneLink.TelegramUsername = NormalizeTelegramUsername(request.TelegramUsername);
+            var normalizedTelegramUsername = NormalizeTelegramUsername(request.TelegramUsername);
+            var existingTelegramLink = await _userPhoneLinkRepository.GetByTelegramUsernameAsync(normalizedTelegramUsername);
+            if (existingTelegramLink != null && existingTelegramLink.UserId != userId)
+            {
+                throw new ArgumentException("This Telegram account is already linked to another profile.");
+            }
+
+            var telegramIdentityChanged =
+                !string.Equals(phoneLink.TelegramUsername, normalizedTelegramUsername, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(existing?.PreferredChannel, MessagingChannel.Telegram, StringComparison.OrdinalIgnoreCase);
+
+            phoneLink.TelegramUsername = normalizedTelegramUsername;
+
+            if (telegramIdentityChanged)
+            {
+                ResetConversationState(phoneLink);
+                phoneLink.TelegramChatId = null;
+            }
         }
         else
         {
@@ -57,8 +74,19 @@ public class UserPhoneLinkService : IUserPhoneLinkService
                 throw new ArgumentException("Phone number is required.");
             }
 
-            phoneLink.PhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            var normalizedPhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            var linqIdentityChanged =
+                !string.Equals(phoneLink.PhoneNumber, normalizedPhoneNumber, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(existing?.PreferredChannel, MessagingChannel.Linq, StringComparison.OrdinalIgnoreCase);
+
+            phoneLink.PhoneNumber = normalizedPhoneNumber;
             phoneLink.AssignedFromPhoneNumber = await ResolveAssignedFromPhoneNumberAsync(request.AssignedFromPhoneNumber);
+
+            if (linqIdentityChanged)
+            {
+                ResetConversationState(phoneLink);
+                phoneLink.LinqChatId = null;
+            }
         }
 
         await _userPhoneLinkRepository.UpsertAsync(phoneLink);
@@ -115,6 +143,14 @@ public class UserPhoneLinkService : IUserPhoneLinkService
             LastInboundMessageAt = phoneLink.LastInboundMessageAt,
             LastOutboundMessageAt = phoneLink.LastOutboundMessageAt
         };
+    }
+
+    private static void ResetConversationState(UserPhoneLink phoneLink)
+    {
+        phoneLink.HasInitiatedConversation = false;
+        phoneLink.FirstInboundMessageAt = null;
+        phoneLink.LastInboundMessageAt = null;
+        phoneLink.LastOutboundMessageAt = null;
     }
 
     private static string NormalizePhoneNumber(string input)

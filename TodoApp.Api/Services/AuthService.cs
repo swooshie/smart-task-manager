@@ -21,7 +21,7 @@ public class AuthService : IAuthService
     {
         var existingUser = await _userRepository.GetByEmailAsync(request.Email);
         if (existingUser != null)
-            throw new Exception("User with this email already exists.");
+            throw new InvalidOperationException("User with this email already exists.");
 
         var user = new User
         {
@@ -45,7 +45,7 @@ public class AuthService : IAuthService
     {
         var user = await _userRepository.GetByEmailAsync(request.Email);
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            throw new Exception("Invalid email or password");
+            throw new UnauthorizedAccessException("Invalid email or password");
 
         var token = _tokenService.CreateToken(user);
         return new AuthResponse { 
