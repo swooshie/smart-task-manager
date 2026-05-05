@@ -31,6 +31,7 @@ type TaskListProps = {
     setEditingLocationReminderEnabled: (value: boolean) => void;
     setEditingPlaceId: (value: string) => void;
     onOpenPlaces: () => void;
+    onClearPlace: () => void;
     transitioningTasks: Record<string, "completing" | "uncompleting">;
 };
 
@@ -129,6 +130,7 @@ export default function TaskList(props: TaskListProps) {
                                     setEditingLocationReminderEnabled={props.setEditingLocationReminderEnabled}
                                     setEditingPlaceId={props.setEditingPlaceId}
                                     onOpenPlaces={props.onOpenPlaces}
+                                    onClearPlace={props.onClearPlace}
                                     transitionState={props.transitioningTasks[task.id]}
                                     />
                             </motion.div> 
@@ -179,6 +181,7 @@ export default function TaskList(props: TaskListProps) {
                                     setEditingLocationReminderEnabled={props.setEditingLocationReminderEnabled}
                                     setEditingPlaceId={props.setEditingPlaceId}
                                     onOpenPlaces={props.onOpenPlaces}
+                                    onClearPlace={props.onClearPlace}
                                     transitionState={props.transitioningTasks[task.id]}
                             />
                         </motion.div>
