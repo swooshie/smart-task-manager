@@ -11,16 +11,22 @@ type TaskItemProps = {
   editingCategory: string;
   editingPriority: string;
   editingDueDate: string;
+  editingLocationReminderEnabled: boolean;
+  editingPlaceId: string;
+  places: Array<{ id: string; name: string; category?: string | null }>;
   onToggle: (task: Task) => void;
   onDelete: (id: string) => void;
   onStartEdit: (task: Task) => void;
-  onCancelEdit: () => void;
   onSaveEdit: (id: string) => void;
   setEditingTitle: (value: string) => void;
   setEditingDescription: (value: string) => void;
   setEditingCategory: (value: string) => void;
   setEditingPriority: (value: string) => void;
   setEditingDueDate: (value: string) => void;
+  setEditingLocationReminderEnabled: (value: boolean) => void;
+  setEditingPlaceId: (value: string) => void;
+  onOpenPlaces: () => void;
+  onClearPlace: () => void;
   transitionState?: "completing" | "uncompleting";
 };
 
@@ -45,19 +51,26 @@ export default function TaskItem({
   editingCategory,
   editingPriority,
   editingDueDate,
+  editingLocationReminderEnabled,
+  editingPlaceId,
+  places,
   onToggle,
   onDelete,
   onStartEdit,
-  onCancelEdit,
   onSaveEdit,
   setEditingTitle,
   setEditingDescription,
   setEditingCategory,
   setEditingPriority,
   setEditingDueDate,
+  setEditingLocationReminderEnabled,
+  setEditingPlaceId,
+  onOpenPlaces,
+  onClearPlace,
   transitionState
 }: TaskItemProps) {
     const visuallyCompleted = task.isCompleted || transitionState === "completing";
+    const selectedPlace = places.find((place) => place.id === editingPlaceId);
     // const visuallyCompleted = task.isCompleted;
   if (isEditing) {
     return (
@@ -95,34 +108,124 @@ export default function TaskItem({
               <option value="high">High priority</option>
             </select>
 
-            <input
-                className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-white outline-none"
-                type="date"
-                value={editingDueDate}
-                onChange={(e) => setEditingDueDate(e.target.value)}
+            <div className="relative">
+              <input
+                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 p-3 pr-11 text-white outline-none"
+                  type="date"
+                  value={editingDueDate}
+                  onChange={(e) => setEditingDueDate(e.target.value)}
+                  onClick={(e) => {
+                      const input = e.currentTarget;
+                      if (input.showPicker) {
+                          input.showPicker();
+                      }
+                  }}
+              />
+              <button
+                type="button"
                 onClick={(e) => {
-                    const input = e.currentTarget;
-                    if (input.showPicker) {
-                        input.showPicker();
-                    }
+                  const input = e.currentTarget.previousElementSibling as HTMLInputElement | null;
+                  if (input?.showPicker) {
+                    input.showPicker();
+                  }
                 }}
-            />
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 transition hover:text-neutral-200"
+                aria-label="Open calendar"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 2v3M16 2v3M3.5 9.5h17M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18V7A1.5 1.5 0 0 1 5 5.5Z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-white">Location</p>
+                <p className="mt-1 text-xs text-neutral-400">
+                  Give this task a place with a good memory.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditingLocationReminderEnabled(!editingLocationReminderEnabled)}
+                aria-pressed={editingLocationReminderEnabled}
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition ${
+                  editingLocationReminderEnabled
+                    ? "border-emerald-400/40 bg-emerald-400"
+                    : "border-neutral-700 bg-neutral-800"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition ${
+                    editingLocationReminderEnabled ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {editingLocationReminderEnabled ? (
+              <div className="mt-3 space-y-3">
+                <select
+                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white outline-none"
+                  value={editingPlaceId}
+                  onChange={(e) => setEditingPlaceId(e.target.value)}
+                >
+                  <option value="">Select a saved place</option>
+                  {places.map((place) => (
+                    <option key={place.id} value={place.id}>
+                      {place.name}{place.category ? ` (${place.category})` : ""}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={onOpenPlaces}
+                  className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-100 transition hover:bg-neutral-800"
+                >
+                  Places
+                </button>
+
+                {selectedPlace ? (
+                  <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-3">
+                    <p className="text-sm font-medium text-white">{selectedPlace.name}</p>
+                    <p className="mt-1 text-xs text-neutral-300">
+                      {selectedPlace.category ? selectedPlace.category : "Linked place"}
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={onOpenPlaces}
+                        className="rounded-2xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-100 transition hover:bg-neutral-800"
+                      >
+                        Edit place
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onClearPlace}
+                        className="rounded-2xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-red-300 transition hover:bg-neutral-800"
+                      >
+                        Unlink
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex gap-2">
             <button
               onClick={() => onSaveEdit(task.id)}
-              className="rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:opacity-90"
+              disabled={editingLocationReminderEnabled && !editingPlaceId}
+              className="rounded-2xl bg-white px-4 py-2 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Save
             </button>
 
-            <button
-              onClick={onCancelEdit}
-              className="rounded-2xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-100 transition hover:bg-neutral-700"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       </div>
@@ -180,6 +283,18 @@ export default function TaskItem({
             {task.category ? (
               <span className="rounded-full border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300">
                 {task.category}
+              </span>
+            ) : null}
+
+            {task.locationReminderEnabled ? (
+              <span
+                className="inline-flex items-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-300"
+                aria-label="Location reminder enabled"
+                title="Location reminder enabled"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" className="h-3.5 w-3.5 rotate-45">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m12 3 7 18-7-4-7 4 7-18Z" />
+                </svg>
               </span>
             ) : null}
           </div>

@@ -13,13 +13,22 @@ public class UserPhoneLink
     public string UserId { get; set; } = null!;
 
     [BsonElement("phoneNumber")]
-    public string PhoneNumber { get; set; } = null!;
+    public string? PhoneNumber { get; set; }
 
     [BsonElement("assignedFromPhoneNumber")]
-    public string AssignedFromPhoneNumber { get; set; } = null!;
+    public string? AssignedFromPhoneNumber { get; set; }
+
+    [BsonElement("telegramUsername")]
+    public string? TelegramUsername { get; set; }
 
     [BsonElement("linqChatId")]
     public string? LinqChatId { get; set; }
+
+    [BsonElement("telegramChatId")]
+    public string? TelegramChatId { get; set; }
+
+    [BsonElement("preferredChannel")]
+    public string PreferredChannel { get; set; } = MessagingChannel.Linq;
 
     [BsonElement("hasInitiatedConversation")]
     public bool HasInitiatedConversation { get; set; }

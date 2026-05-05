@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TodoApp.Api.DTOs;
 
-public class CreateSavedPlaceRequest
+public class UpdateSavedPlaceRequest
 {
     [Required]
     [MinLength(1)]

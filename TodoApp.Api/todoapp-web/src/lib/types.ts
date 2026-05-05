@@ -25,6 +25,8 @@ export type TaskItem = {
   updatedAt?: string | null;
   priority: string;
 	category?: string | null;
+	placeId?: string | null;
+	locationReminderEnabled?: boolean;
 	dueDate?: string | null;
 };
 
@@ -33,15 +35,19 @@ export type CreateTaskRequest = {
   description?: string;
 	priority?: string;
 	category?: string;
+	placeId?: string | null;
+	locationReminderEnabled?: boolean;
 	dueDate?: string | null;
 };
 
 export type UpdateTaskRequest = {
   title?: string;
   description?: string;
-  isCompleted?: boolean;
+	isCompleted?: boolean;
 	priority?: string;
 	category?: string;
+	placeId?: string | null;
+	locationReminderEnabled?: boolean;
 	dueDate?: string | null;
 };
 
@@ -56,9 +62,12 @@ export type RecommendationResponse = {
 }
 
 export type UserPhoneLink = {
-  phoneNumber: string;
-  assignedFromPhoneNumber: string;
+  phoneNumber?: string | null;
+  assignedFromPhoneNumber?: string | null;
+  telegramUsername?: string | null;
   linqChatId?: string | null;
+  telegramChatId?: string | null;
+  preferredChannel: "linq" | "telegram";
   hasInitiatedConversation: boolean;
   firstInboundMessageAt?: string | null;
   lastInboundMessageAt?: string | null;
@@ -66,8 +75,10 @@ export type UserPhoneLink = {
 };
 
 export type UpsertUserPhoneLinkRequest = {
-  phoneNumber: string;
+  phoneNumber?: string;
   assignedFromPhoneNumber?: string;
+  telegramUsername?: string;
+  preferredChannel: "linq" | "telegram";
 };
 
 export type LinqPhoneNumber = {
@@ -92,7 +103,9 @@ export type CreateSavedPlaceRequest = {
   radiusMeters: number;
 };
 
-export type SimulateLocationEventRequest = {
+export type UpdateSavedPlaceRequest = CreateSavedPlaceRequest;
+
+export type ReportLocationEventRequest = {
   latitude: number;
   longitude: number;
 };

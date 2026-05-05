@@ -22,9 +22,24 @@ public class SavedPlaceRepository : ISavedPlaceRepository
             .ToListAsync();
     }
 
+    public async Task<SavedPlace?> GetByIdAsync(string userId, string placeId)
+    {
+        return await _context.SavedPlaces
+            .Find(place => place.UserId == userId && place.Id == placeId)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task CreateAsync(SavedPlace place)
     {
         await _context.SavedPlaces.InsertOneAsync(place);
+    }
+
+    public async Task UpdateAsync(SavedPlace place)
+    {
+        await _context.SavedPlaces.ReplaceOneAsync(
+            existing => existing.UserId == place.UserId && existing.Id == place.Id,
+            place
+        );
     }
 
     public async Task DeleteAsync(string userId, string placeId)

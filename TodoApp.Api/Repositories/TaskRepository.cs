@@ -38,6 +38,18 @@ public class TaskRepository : ITaskRepository
         await _context.Tasks.ReplaceOneAsync(t => t.Id == task.Id, task);
     }
 
+    public async Task ClearPlaceReferencesAsync(string userId, string placeId)
+    {
+        var update = Builders<TaskItem>.Update
+            .Set(task => task.PlaceId, null)
+            .Set(task => task.LocationReminderEnabled, false);
+
+        await _context.Tasks.UpdateManyAsync(
+            task => task.UserId == userId && task.PlaceId == placeId,
+            update
+        );
+    }
+
     public async Task DeleteAsync(string id)
     {
         await _context.Tasks.DeleteOneAsync(t => t.Id == id);

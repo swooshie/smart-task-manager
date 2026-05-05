@@ -55,6 +55,7 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 builder.Services.Configure<MongoDbSettings>(builder.Configuration.GetSection("MongoDbSettings"));
 builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.Configure<LinqSettings>(builder.Configuration.GetSection("Linq"));
+builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("Telegram"));
 
 // redis configuration
 
@@ -77,6 +78,13 @@ builder.Services.AddHttpClient<ILinqClientService, LinqClientService>((sp, clien
     client.BaseAddress = new Uri($"{settings.BaseUrl.TrimEnd('/')}/");
     client.Timeout = TimeSpan.FromSeconds(12);
 });
+builder.Services.AddHttpClient<ITelegramBotService, TelegramBotService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.telegram.org/");
+    client.Timeout = TimeSpan.FromSeconds(12);
+});
+builder.Services.AddScoped<LinqMessageChannelService>();
+builder.Services.AddScoped<TelegramMessageChannelService>();
 
 builder.Services.AddHttpClient<IRecommendationService, RecommendationService>(client => {
     client.Timeout = TimeSpan.FromSeconds(12);
@@ -112,6 +120,8 @@ builder.Services.AddScoped<ILinqInboundMessageService, LinqInboundMessageService
 builder.Services.AddScoped<ILinqWebhookService, LinqWebhookService>();
 builder.Services.AddScoped<ISavedPlaceService, SavedPlaceService>();
 builder.Services.AddScoped<ILocationReminderService, LocationReminderService>();
+builder.Services.AddScoped<IMessageDispatchService, MessageDispatchService>();
+builder.Services.AddScoped<ITelegramWebhookService, TelegramWebhookService>();
 
 // register repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();

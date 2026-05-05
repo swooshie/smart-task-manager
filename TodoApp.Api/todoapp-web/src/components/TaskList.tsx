@@ -15,6 +15,9 @@ type TaskListProps = {
     editingCategory: string;
     editingPriority: string;
     editingDueDate: string;
+    editingLocationReminderEnabled: boolean;
+    editingPlaceId: string;
+    places: Array<{ id: string; name: string; category?: string | null }>;
     onToggle: (task: Task) => void;
     onDelete: (id: string) => void;
     onStartEdit: (task: Task) => void;
@@ -25,6 +28,9 @@ type TaskListProps = {
     setEditingCategory: (value: string) => void;
     setEditingPriority: (value: string) => void;
     setEditingDueDate: (value: string) => void;
+    setEditingLocationReminderEnabled: (value: boolean) => void;
+    setEditingPlaceId: (value: string) => void;
+    onOpenPlaces: () => void;
     transitioningTasks: Record<string, "completing" | "uncompleting">;
 };
 
@@ -107,6 +113,9 @@ export default function TaskList(props: TaskListProps) {
                                     editingCategory={props.editingCategory}
                                     editingPriority={props.editingPriority}
                                     editingDueDate={props.editingDueDate}
+                                    editingLocationReminderEnabled={props.editingLocationReminderEnabled}
+                                    editingPlaceId={props.editingPlaceId}
+                                    places={props.places}
                                     onToggle={props.onToggle}
                                     onDelete={props.onDelete}
                                     onStartEdit={props.onStartEdit}
@@ -117,6 +126,9 @@ export default function TaskList(props: TaskListProps) {
                                     setEditingCategory={props.setEditingCategory}
                                     setEditingPriority={props.setEditingPriority}
                                     setEditingDueDate={props.setEditingDueDate}
+                                    setEditingLocationReminderEnabled={props.setEditingLocationReminderEnabled}
+                                    setEditingPlaceId={props.setEditingPlaceId}
+                                    onOpenPlaces={props.onOpenPlaces}
                                     transitionState={props.transitioningTasks[task.id]}
                                     />
                             </motion.div> 
@@ -151,6 +163,9 @@ export default function TaskList(props: TaskListProps) {
                                     editingCategory={props.editingCategory}
                                     editingPriority={props.editingPriority}
                                     editingDueDate={props.editingDueDate}
+                                    editingLocationReminderEnabled={props.editingLocationReminderEnabled}
+                                    editingPlaceId={props.editingPlaceId}
+                                    places={props.places}
                                     onToggle={props.onToggle}
                                     onDelete={props.onDelete}
                                     onStartEdit={props.onStartEdit}
@@ -161,6 +176,9 @@ export default function TaskList(props: TaskListProps) {
                                     setEditingCategory={props.setEditingCategory}
                                     setEditingPriority={props.setEditingPriority}
                                     setEditingDueDate={props.setEditingDueDate}
+                                    setEditingLocationReminderEnabled={props.setEditingLocationReminderEnabled}
+                                    setEditingPlaceId={props.setEditingPlaceId}
+                                    onOpenPlaces={props.onOpenPlaces}
                                     transitionState={props.transitioningTasks[task.id]}
                             />
                         </motion.div>

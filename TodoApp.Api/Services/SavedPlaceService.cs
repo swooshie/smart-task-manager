@@ -8,10 +8,12 @@ namespace TodoApp.Api.Services;
 public class SavedPlaceService : ISavedPlaceService
 {
     private readonly ISavedPlaceRepository _savedPlaceRepository;
+    private readonly ITaskService _taskService;
 
-    public SavedPlaceService(ISavedPlaceRepository savedPlaceRepository)
+    public SavedPlaceService(ISavedPlaceRepository savedPlaceRepository, ITaskService taskService)
     {
         _savedPlaceRepository = savedPlaceRepository;
+        _taskService = taskService;
     }
 
     public async Task<List<SavedPlaceResponse>> GetByUserIdAsync(string userId)
@@ -22,16 +24,11 @@ public class SavedPlaceService : ISavedPlaceService
 
     public async Task<SavedPlaceResponse> CreateAsync(string userId, CreateSavedPlaceRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Category))
-        {
-            throw new ArgumentException("A task category is required for saved places.");
-        }
-
         var place = new SavedPlace
         {
             UserId = userId,
             Name = request.Name.Trim(),
-            Category = request.Category.Trim(),
+            Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim(),
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             RadiusMeters = request.RadiusMeters
@@ -41,9 +38,28 @@ public class SavedPlaceService : ISavedPlaceService
         return Map(place);
     }
 
+    public async Task<SavedPlaceResponse?> UpdateAsync(string userId, string placeId, UpdateSavedPlaceRequest request)
+    {
+        var existing = await _savedPlaceRepository.GetByIdAsync(userId, placeId);
+        if (existing == null)
+        {
+            return null;
+        }
+
+        existing.Name = request.Name.Trim();
+        existing.Category = string.IsNullOrWhiteSpace(request.Category) ? null : request.Category.Trim();
+        existing.Latitude = request.Latitude;
+        existing.Longitude = request.Longitude;
+        existing.RadiusMeters = request.RadiusMeters;
+
+        await _savedPlaceRepository.UpdateAsync(existing);
+        return Map(existing);
+    }
+
     public async Task DeleteAsync(string userId, string placeId)
     {
         await _savedPlaceRepository.DeleteAsync(userId, placeId);
+        await _taskService.ClearPlaceReferencesAsync(userId, placeId);
     }
 
     private static SavedPlaceResponse Map(SavedPlace place)

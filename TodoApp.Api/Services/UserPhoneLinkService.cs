@@ -31,13 +31,7 @@ public class UserPhoneLinkService : IUserPhoneLinkService
 
     public async Task<UserPhoneLinkResponse> UpsertAsync(string userId, UpsertUserPhoneLinkRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.PhoneNumber))
-        {
-            throw new ArgumentException("Phone number is required.");
-        }
-
-        var normalizedPhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
-        var assignedFromPhoneNumber = await ResolveAssignedFromPhoneNumberAsync(request.AssignedFromPhoneNumber);
+        var preferredChannel = NormalizePreferredChannel(request.PreferredChannel);
         var existing = await _userPhoneLinkRepository.GetByUserIdAsync(userId);
 
         var phoneLink = existing ?? new UserPhoneLink
@@ -45,8 +39,27 @@ public class UserPhoneLinkService : IUserPhoneLinkService
             UserId = userId
         };
 
-        phoneLink.PhoneNumber = normalizedPhoneNumber;
-        phoneLink.AssignedFromPhoneNumber = assignedFromPhoneNumber;
+        phoneLink.PreferredChannel = preferredChannel;
+
+        if (preferredChannel == MessagingChannel.Telegram)
+        {
+            if (string.IsNullOrWhiteSpace(request.TelegramUsername))
+            {
+                throw new ArgumentException("Telegram username is required.");
+            }
+
+            phoneLink.TelegramUsername = NormalizeTelegramUsername(request.TelegramUsername);
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(request.PhoneNumber))
+            {
+                throw new ArgumentException("Phone number is required.");
+            }
+
+            phoneLink.PhoneNumber = NormalizePhoneNumber(request.PhoneNumber);
+            phoneLink.AssignedFromPhoneNumber = await ResolveAssignedFromPhoneNumberAsync(request.AssignedFromPhoneNumber);
+        }
 
         await _userPhoneLinkRepository.UpsertAsync(phoneLink);
         return Map(phoneLink);
@@ -93,7 +106,10 @@ public class UserPhoneLinkService : IUserPhoneLinkService
         {
             PhoneNumber = phoneLink.PhoneNumber,
             AssignedFromPhoneNumber = phoneLink.AssignedFromPhoneNumber,
+            TelegramUsername = phoneLink.TelegramUsername,
             LinqChatId = phoneLink.LinqChatId,
+            TelegramChatId = phoneLink.TelegramChatId,
+            PreferredChannel = phoneLink.PreferredChannel,
             HasInitiatedConversation = phoneLink.HasInitiatedConversation,
             FirstInboundMessageAt = phoneLink.FirstInboundMessageAt,
             LastInboundMessageAt = phoneLink.LastInboundMessageAt,
@@ -129,5 +145,38 @@ public class UserPhoneLinkService : IUserPhoneLinkService
         {
             throw new ArgumentException("Phone number must be a valid E.164-compatible number.");
         }
+    }
+
+    private static string NormalizePreferredChannel(string? preferredChannel)
+    {
+        var normalized = preferredChannel?.Trim().ToLowerInvariant();
+
+        return normalized switch
+        {
+            MessagingChannel.Telegram => MessagingChannel.Telegram,
+            _ => MessagingChannel.Linq
+        };
+    }
+
+    private static string NormalizeTelegramUsername(string input)
+    {
+        var normalized = input.Trim().TrimStart('@').ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ArgumentException("Telegram username is required.");
+        }
+
+        if (normalized.Length < 5 || normalized.Length > 32)
+        {
+            throw new ArgumentException("Telegram username must be between 5 and 32 characters.");
+        }
+
+        if (normalized.Any(ch => !(char.IsLetterOrDigit(ch) || ch == '_')))
+        {
+            throw new ArgumentException("Telegram username can only contain letters, numbers, and underscores.");
+        }
+
+        return normalized;
     }
 }

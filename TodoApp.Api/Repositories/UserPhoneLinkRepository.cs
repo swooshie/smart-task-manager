@@ -28,6 +28,13 @@ public class UserPhoneLinkRepository : IUserPhoneLinkRepository
             .FirstOrDefaultAsync();
     }
 
+    public async Task<UserPhoneLink?> GetByTelegramUsernameAsync(string username)
+    {
+        return await _context.UserPhoneLinks
+            .Find(link => link.TelegramUsername == username)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task UpsertAsync(UserPhoneLink phoneLink)
     {
         phoneLink.UpdatedAt = DateTime.UtcNow;

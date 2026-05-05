@@ -12,5 +12,7 @@ public class UpdateTaskRequest
     public bool? IsComplete { get; set; }
     public string? Priority { get; set; }
     public string? Category { get; set; }
+    public string? PlaceId { get; set; }
+    public bool? LocationReminderEnabled { get; set; }
     public DateTime? DueDate { get; set; }
 }

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TodoApp.Api.Configuration;
 using TodoApp.Api.DTOs;
@@ -20,17 +21,20 @@ public class LinqWebhookService : ILinqWebhookService
     private readonly ILinqInboundMessageService _linqInboundMessageService;
     private readonly ILinqClientService _linqClientService;
     private readonly LinqSettings _linqSettings;
+    private readonly ILogger<LinqWebhookService> _logger;
 
     public LinqWebhookService(
         IUserPhoneLinkRepository userPhoneLinkRepository,
         ILinqInboundMessageService linqInboundMessageService,
         ILinqClientService linqClientService,
-        IOptions<LinqSettings> linqSettings)
+        IOptions<LinqSettings> linqSettings,
+        ILogger<LinqWebhookService> logger)
     {
         _userPhoneLinkRepository = userPhoneLinkRepository;
         _linqInboundMessageService = linqInboundMessageService;
         _linqClientService = linqClientService;
         _linqSettings = linqSettings.Value;
+        _logger = logger;
     }
 
     public bool IsSignatureValid(string rawBody, string? timestamp, string? signature)
@@ -147,10 +151,17 @@ public class LinqWebhookService : ILinqWebhookService
         try
         {
             var result = await _linqClientService.SendTextMessageAsync(chatId, message);
+            if (result == null)
+            {
+                _logger.LogWarning("Linq reply send failed with empty response for chat {ChatId}", chatId);
+                return false;
+            }
+
             return result != null;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Linq reply send failed for chat {ChatId}", chatId);
             return false;
         }
     }

@@ -5,12 +5,13 @@ import {
     LinqPhoneNumber,
     LoginRequest,
     LocationReminderResult,
+    ReportLocationEventRequest,
     SavedPlace,
     SignupRequest,
-    SimulateLocationEventRequest,
     TaskItem,
     UpsertUserPhoneLinkRequest,
     UpdateTaskRequest,
+    UpdateSavedPlaceRequest,
     UserPhoneLink,
     RecommendationRequest,
     RecommendationResponse
@@ -38,8 +39,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
     if (raw) {
       try {
         const errorBody = JSON.parse(raw);
+        const validationErrors = errorBody?.errors
+          ? Object.values(errorBody.errors)
+              .flat()
+              .filter(Boolean)
+              .join(" ")
+          : "";
+
         message =
           errorBody?.message ||
+          validationErrors ||
           errorBody?.title ||
           JSON.stringify(errorBody);
       } catch {
@@ -184,11 +193,24 @@ export async function deletePlace(id: string, token: string): Promise<void> {
     return handleResponse<void>(response);
 }
 
-export async function simulateLocationEvent(
-    request: SimulateLocationEventRequest,
+export async function updatePlace(
+    id: string,
+    request: UpdateSavedPlaceRequest,
+    token: string
+): Promise<SavedPlace> {
+    const response = await fetch(`${API_BASE_URL}/api/places/${id}`, {
+        method: "PUT",
+        headers: getAuthHeaders(token),
+        body: JSON.stringify(request),
+    });
+    return handleResponse<SavedPlace>(response);
+}
+
+export async function reportLocationEvent(
+    request: ReportLocationEventRequest,
     token: string
 ): Promise<LocationReminderResult> {
-    const response = await fetch(`${API_BASE_URL}/api/location-events/simulate`, {
+    const response = await fetch(`${API_BASE_URL}/api/location-events/report`, {
         method: "POST",
         headers: getAuthHeaders(token),
         body: JSON.stringify(request),

@@ -51,6 +51,31 @@ public class PlacesController : ControllerBase
         }
     }
 
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdatePlace(string id, [FromBody] UpdateSavedPlaceRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(new { message = "Invalid token." });
+        }
+
+        try
+        {
+            var place = await _savedPlaceService.UpdateAsync(userId, id, request);
+            if (place == null)
+            {
+                return NotFound(new { message = "Place not found." });
+            }
+
+            return Ok(place);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeletePlace(string id)
     {

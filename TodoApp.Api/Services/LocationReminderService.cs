@@ -10,32 +10,32 @@ public class LocationReminderService : ILocationReminderService
     private readonly ISavedPlaceRepository _savedPlaceRepository;
     private readonly ITaskRepository _taskRepository;
     private readonly IUserPhoneLinkRepository _userPhoneLinkRepository;
-    private readonly ILinqClientService _linqClientService;
+    private readonly IMessageDispatchService _messageDispatchService;
     private readonly ICacheService _cacheService;
 
     public LocationReminderService(
         ISavedPlaceRepository savedPlaceRepository,
         ITaskRepository taskRepository,
         IUserPhoneLinkRepository userPhoneLinkRepository,
-        ILinqClientService linqClientService,
+        IMessageDispatchService messageDispatchService,
         ICacheService cacheService)
     {
         _savedPlaceRepository = savedPlaceRepository;
         _taskRepository = taskRepository;
         _userPhoneLinkRepository = userPhoneLinkRepository;
-        _linqClientService = linqClientService;
+        _messageDispatchService = messageDispatchService;
         _cacheService = cacheService;
     }
 
-    public async Task<LocationReminderResult> ProcessLocationEventAsync(string userId, SimulateLocationEventRequest request)
+    public async Task<LocationReminderResult> ProcessLocationEventAsync(string userId, ReportLocationEventRequest request)
     {
         var phoneLink = await _userPhoneLinkRepository.GetByUserIdAsync(userId);
-        if (phoneLink == null || !phoneLink.HasInitiatedConversation || string.IsNullOrWhiteSpace(phoneLink.LinqChatId))
+        if (phoneLink == null || !phoneLink.HasInitiatedConversation || !_messageDispatchService.CanSend(phoneLink))
         {
             return new LocationReminderResult
             {
                 ReminderSent = false,
-                Message = "Link a phone number and send the sandbox number a first message before reminders can be sent."
+                Message = "Link your messaging channel and send it a first message before reminders can be sent."
             };
         }
 
@@ -51,19 +51,19 @@ public class LocationReminderService : ILocationReminderService
 
         var tasks = await _taskRepository.GetByUserIdAsync(userId);
         var snoozedTaskIds = await GetSnoozedTaskIdsAsync(userId, tasks);
-        var candidateTask = PickBestTask(tasks, nearbyPlace, snoozedTaskIds);
+        var candidateTasks = PickTasks(tasks, nearbyPlace, snoozedTaskIds);
 
-        if (candidateTask == null)
+        if (candidateTasks.Count == 0)
         {
             return new LocationReminderResult
             {
                 ReminderSent = false,
                 PlaceName = nearbyPlace.Name,
-                Message = "You are near a saved place, but no open task strongly matches it."
+                Message = "You are near a saved place, but no open task is linked to it."
             };
         }
 
-        var dedupeKey = $"linq:location-reminder:{userId}:{nearbyPlace.Id}:{candidateTask.Id}";
+        var dedupeKey = GetRecentReminderKey(userId, nearbyPlace.Id);
         var existing = await _cacheService.GetAsync<string>(dedupeKey);
         if (!string.IsNullOrWhiteSpace(existing))
         {
@@ -71,24 +71,22 @@ public class LocationReminderService : ILocationReminderService
             {
                 ReminderSent = false,
                 PlaceName = nearbyPlace.Name,
-                TaskTitle = candidateTask.Title,
+                TaskTitle = candidateTasks[0].Title,
                 Message = "A reminder for this place and task was sent recently."
             };
         }
 
-        var reminderText =
-            $"You're near {nearbyPlace.Name} and still have \"{candidateTask.Title}\" open. " +
-            "Reply DONE, SNOOZE 30, or LIST.";
+        var reminderText = BuildReminderText(nearbyPlace.Name, candidateTasks);
 
-        var result = await _linqClientService.SendTextMessageAsync(phoneLink.LinqChatId, reminderText);
-        if (result == null)
+        var sendResult = await _messageDispatchService.SendTextMessageAsync(phoneLink, reminderText);
+        if (!sendResult.Success)
         {
             return new LocationReminderResult
             {
                 ReminderSent = false,
                 PlaceName = nearbyPlace.Name,
-                TaskTitle = candidateTask.Title,
-                Message = "Linq message send failed."
+                TaskTitle = candidateTasks[0].Title,
+                Message = sendResult.UserMessage ?? $"{_messageDispatchService.ResolveChannelName(phoneLink)} is currently unavailable."
             };
         }
 
@@ -100,8 +98,14 @@ public class LocationReminderService : ILocationReminderService
             GetActiveReminderKey(userId),
             new ActiveReminderContext
             {
-                TaskId = candidateTask.Id,
-                TaskTitle = candidateTask.Title,
+                Tasks = candidateTasks
+                    .Select(task => new ActiveReminderTask
+                    {
+                        TaskId = task.Id,
+                        TaskTitle = task.Title
+                    })
+                    .ToList(),
+                PlaceId = nearbyPlace.Id,
                 PlaceName = nearbyPlace.Name,
                 CreatedAt = DateTime.UtcNow
             },
@@ -112,14 +116,15 @@ public class LocationReminderService : ILocationReminderService
         {
             ReminderSent = true,
             PlaceName = nearbyPlace.Name,
-            TaskTitle = candidateTask.Title,
+            TaskTitle = candidateTasks[0].Title,
             Message = reminderText
         };
     }
 
     public static string GetActiveReminderKey(string userId) => $"linq:active-reminder:{userId}";
+    public static string GetRecentReminderKey(string userId, string placeId) => $"linq:location-reminder:{userId}:{placeId}";
 
-    private async Task<SavedPlace?> FindNearbyPlaceAsync(string userId, SimulateLocationEventRequest request)
+    private async Task<SavedPlace?> FindNearbyPlaceAsync(string userId, ReportLocationEventRequest request)
     {
         var places = await _savedPlaceRepository.GetByUserIdAsync(userId);
 
@@ -139,51 +144,33 @@ public class LocationReminderService : ILocationReminderService
             .FirstOrDefault();
     }
 
-    private static TaskItem? PickBestTask(IEnumerable<TaskItem> tasks, SavedPlace place, HashSet<string> snoozedTaskIds)
+    private static List<TaskItem> PickTasks(IEnumerable<TaskItem> tasks, SavedPlace place, HashSet<string> snoozedTaskIds)
     {
-        var category = place.Category?.Trim().ToLowerInvariant();
-        var placeName = place.Name.Trim().ToLowerInvariant();
-
         return tasks
-            .Where(task => !task.IsComplete && !snoozedTaskIds.Contains(task.Id))
-            .Select(task => new
-            {
-                Task = task,
-                Score = ScoreTask(task, category, placeName)
-            })
-            .Where(item => item.Score > 0)
-            .OrderByDescending(item => item.Score)
-            .ThenByDescending(item => item.Task.CreatedAt)
-            .Select(item => item.Task)
-            .FirstOrDefault();
+            .Where(task =>
+                !task.IsComplete &&
+                !snoozedTaskIds.Contains(task.Id) &&
+                task.LocationReminderEnabled &&
+                task.PlaceId == place.Id)
+            .OrderByDescending(task => task.CreatedAt)
+            .ToList();
     }
 
-    private static int ScoreTask(TaskItem task, string? category, string placeName)
+    private static string BuildReminderText(string placeName, IReadOnlyList<TaskItem> tasks)
     {
-        var score = 0;
-        var title = task.Title.Trim().ToLowerInvariant();
-        var description = task.Description?.Trim().ToLowerInvariant() ?? string.Empty;
-        var taskCategory = task.Category?.Trim().ToLowerInvariant();
-
-        if (!string.IsNullOrWhiteSpace(category) && taskCategory == category)
+        if (tasks.Count == 1)
         {
-            score += 5;
+            return $"You're near {placeName} and still have \"{tasks[0].Title}\" open. Reply DONE, SNOOZE 30, or LIST.";
         }
 
-        if (title.Contains(placeName, StringComparison.OrdinalIgnoreCase) ||
-            description.Contains(placeName, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 4;
-        }
+        var lines = tasks
+            .Select((task, index) => $"{index + 1}. {task.Title}")
+            .ToList();
 
-        if (!string.IsNullOrWhiteSpace(category) &&
-            (title.Contains(category, StringComparison.OrdinalIgnoreCase) ||
-             description.Contains(category, StringComparison.OrdinalIgnoreCase)))
-        {
-            score += 3;
-        }
-
-        return score;
+        return
+            $"You're near {placeName}. These tasks are still open:\n" +
+            $"{string.Join("\n", lines)}\n" +
+            "Reply DONE <number>, DONE ALL, SNOOZE 30, or LIST.";
     }
 
     private async Task<HashSet<string>> GetSnoozedTaskIdsAsync(string userId, IEnumerable<TaskItem> tasks)

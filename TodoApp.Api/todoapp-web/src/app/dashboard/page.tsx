@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import { FormEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
     createPlace,
@@ -8,17 +8,16 @@ import {
     deletePlace,
     deleteTask,
     getPlaces,
+    updatePlace,
     updateTask,
     getTasks,
     getRecommendations,
     getMyPhoneLink,
     upsertMyPhoneLink,
-    getAvailableLines,
-    simulateLocationEvent,
+    reportLocationEvent,
 } from "@/lib/api";
 import { clearAuthData, getToken, getUserName } from "@/lib/auth";
 import {
-    LinqPhoneNumber,
     LocationReminderResult,
     SavedPlace,
     TaskItem,
@@ -30,6 +29,8 @@ import SuggestionsBar from "@/components/SuggestionsBar";
 import TaskList from "@/components/TaskList";
 
 export default function DashboardPage() {
+    const TELEGRAM_BOT_USERNAME = "smart_task_manager_swooshie_bot";
+    const LOCATION_POLL_INTERVAL_MS = 30000;
     const router = useRouter();
     const [userName, setUserName] = useState<string | null>(null);
     const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -38,6 +39,8 @@ export default function DashboardPage() {
     const [priority, setPriority] = useState("medium");
     const [category, setCategory] = useState("");
     const [dueDate, setDueDate] = useState("");
+    const [taskLocationReminderEnabled, setTaskLocationReminderEnabled] = useState(false);
+    const [taskPlaceId, setTaskPlaceId] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -47,6 +50,8 @@ export default function DashboardPage() {
     const [editingPriority, setEditingPriority] = useState("medium");
     const [editingCategory, setEditingCategory] = useState("");
     const [editingDueDate, setEditingDueDate] = useState("");
+    const [editingLocationReminderEnabled, setEditingLocationReminderEnabled] = useState(false);
+    const [editingPlaceId, setEditingPlaceId] = useState("");
 
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [recommendationLoading, setRecommendationLoading] = useState(false);
@@ -59,36 +64,33 @@ export default function DashboardPage() {
     const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
     const [sortBy, setSortBy] = useState<"created" | "dueDate" | "priority">("created");
     const [phoneLink, setPhoneLink] = useState<UserPhoneLink | null>(null);
+    const [preferredChannel, setPreferredChannel] = useState<"linq" | "telegram">("telegram");
     const [phoneNumber, setPhoneNumber] = useState("");
     const [assignedFromPhoneNumber, setAssignedFromPhoneNumber] = useState("");
-    const [availableLines, setAvailableLines] = useState<LinqPhoneNumber[]>([]);
+    const [telegramUsername, setTelegramUsername] = useState("");
     const [phoneLinkLoading, setPhoneLinkLoading] = useState(false);
     const [phoneLinkSaving, setPhoneLinkSaving] = useState(false);
     const [editingPhoneLink, setEditingPhoneLink] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [placesOpen, setPlacesOpen] = useState(false);
+    const [placeSelectionTarget, setPlaceSelectionTarget] = useState<"task-create" | "task-edit" | null>(null);
     const [places, setPlaces] = useState<SavedPlace[]>([]);
     const [placeName, setPlaceName] = useState("");
     const [placeCategory, setPlaceCategory] = useState("");
     const [placeLatitude, setPlaceLatitude] = useState("");
     const [placeLongitude, setPlaceLongitude] = useState("");
     const [placeRadiusMeters, setPlaceRadiusMeters] = useState("250");
+    const [editingPlaceEntryId, setEditingPlaceEntryId] = useState<string | null>(null);
     const [placesLoading, setPlacesLoading] = useState(false);
     const [placeSaving, setPlaceSaving] = useState(false);
     const [capturingLocation, setCapturingLocation] = useState(false);
     const [locationCaptureMessage, setLocationCaptureMessage] = useState("");
-    const [simulatingPlaceId, setSimulatingPlaceId] = useState<string | null>(null);
+    const [reportingCurrentLocation, setReportingCurrentLocation] = useState(false);
     const [locationResult, setLocationResult] = useState<LocationReminderResult | null>(null);
-    const taskCategories = Array.from(
-        new Set(
-            tasks
-                .map((task) => task.category?.trim())
-                .filter((category): category is string => Boolean(category))
-        )
-    ).sort((a, b) => a.localeCompare(b));
-
+    const locationPollIntervalRef = useRef<number | null>(null);
     const initializeDashboard = useEffectEvent(() => {
         loadTasks();
         loadPhoneLink();
-        loadAvailableLines();
         loadPlaces();
     });
 
@@ -155,10 +157,56 @@ export default function DashboardPage() {
 
         const timeout = window.setTimeout(() => {
             setLocationResult(null);
-        }, 3000);
+        }, 6000);
 
         return () => window.clearTimeout(timeout);
     }, [locationResult]);
+
+    useEffect(() => {
+        if (!navigator.geolocation) {
+            return;
+        }
+
+        const runLocationCheck = () => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+
+            void reportCurrentLocation({ silentNoop: true, showLoadingState: false });
+        };
+
+        const startPolling = () => {
+            if (locationPollIntervalRef.current !== null) {
+                window.clearInterval(locationPollIntervalRef.current);
+            }
+
+            runLocationCheck();
+            locationPollIntervalRef.current = window.setInterval(runLocationCheck, LOCATION_POLL_INTERVAL_MS);
+        };
+
+        const stopPolling = () => {
+            if (locationPollIntervalRef.current !== null) {
+                window.clearInterval(locationPollIntervalRef.current);
+                locationPollIntervalRef.current = null;
+            }
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                startPolling();
+            } else {
+                stopPolling();
+            }
+        };
+
+        startPolling();
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            stopPolling();
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, []);
 
     function requireToken() {
         const currentToken = getToken();
@@ -170,6 +218,34 @@ export default function DashboardPage() {
         }
 
         return currentToken;
+    }
+
+    function mapLocationResultToToast(result: LocationReminderResult): LocationReminderResult | null {
+        if (result.reminderSent) {
+            return {
+                ...result,
+                message: result.placeName
+                    ? `Reminder sent near ${result.placeName}.`
+                    : "Reminder sent.",
+            };
+        }
+
+        if (
+            result.message === "No saved place matched this location." ||
+            result.message === "You are near a saved place, but no open task is linked to it." ||
+            result.message === "A reminder for this place and task was sent recently."
+        ) {
+            return null;
+        }
+
+        if (result.message === "Link your messaging channel and send it a first message before reminders can be sent.") {
+            return {
+                ...result,
+                message: "Finish linking your messaging channel to enable reminders.",
+            };
+        }
+
+        return result;
     }
 
     async function loadTasks() {
@@ -203,16 +279,19 @@ export default function DashboardPage() {
             setPhoneLinkLoading(true);
             const data = await getMyPhoneLink(currentToken);
             setPhoneLink(data);
-            setPhoneNumber(data.phoneNumber);
-            setAssignedFromPhoneNumber(data.assignedFromPhoneNumber);
+            setPreferredChannel(data.preferredChannel);
+            setPhoneNumber(data.phoneNumber ?? "");
+            setAssignedFromPhoneNumber(data.assignedFromPhoneNumber ?? "");
+            setTelegramUsername(data.telegramUsername ?? "");
             setEditingPhoneLink(!data.hasInitiatedConversation);
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to load linked phone";
 
             if (message.includes("404") || message.includes("No phone link found")) {
-                setPhoneLink(null);
-                setEditingPhoneLink(true);
-                return;
+            setPhoneLink(null);
+            setPreferredChannel("telegram");
+            setEditingPhoneLink(true);
+            return;
             }
 
             if (message.includes("401")) {
@@ -224,30 +303,6 @@ export default function DashboardPage() {
             setError(message);
         } finally {
             setPhoneLinkLoading(false);
-        }
-    }
-
-    async function loadAvailableLines() {
-        const currentToken = requireToken();
-        if (!currentToken) return;
-
-        try {
-            const data = await getAvailableLines(currentToken);
-            setAvailableLines(data);
-
-            if (!assignedFromPhoneNumber && data.length > 0) {
-                setAssignedFromPhoneNumber(data[0].phoneNumber);
-            }
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to load Linq lines";
-
-            if (message.includes("401")) {
-                clearAuthData();
-                router.replace("/login");
-                return;
-            }
-
-            setError(message);
         }
     }
 
@@ -289,6 +344,8 @@ export default function DashboardPage() {
                 description,
                 priority,
                 category,
+                placeId: taskLocationReminderEnabled ? taskPlaceId || null : null,
+                locationReminderEnabled: taskLocationReminderEnabled,
                 dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
             }, currentToken);
 
@@ -298,29 +355,16 @@ export default function DashboardPage() {
             setPriority("medium");
             setCategory("");
             setDueDate("");
+            setTaskLocationReminderEnabled(false);
+            setTaskPlaceId("");
             setSuggestions([]);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to create task");
         }
     }
 
-    async function handleCreateFromSuggestion(suggestion: string) {
-        const currentToken = getToken();
-        if (!currentToken) return;
-
-        try {
-            const created = await createTask({
-            title: suggestion,
-            description: "",
-            priority: "medium",
-            category: "suggested",
-            }, currentToken);
-
-            setTasks((prev) => [created, ...prev]);
-            setSuggestions([]);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to create task");
-        }
+    function handleCreateFromSuggestion(suggestion: string) {
+        setTitle(suggestion);
     }
 
     async function handleSavePhoneLink(e: FormEvent) {
@@ -333,14 +377,19 @@ export default function DashboardPage() {
             setPhoneLinkSaving(true);
             const saved = await upsertMyPhoneLink(
                 {
-                    phoneNumber,
-                    assignedFromPhoneNumber: assignedFromPhoneNumber || undefined,
+                    preferredChannel,
+                    phoneNumber: preferredChannel === "linq" ? phoneNumber : undefined,
+                    assignedFromPhoneNumber:
+                        preferredChannel === "linq" ? assignedFromPhoneNumber || undefined : undefined,
+                    telegramUsername:
+                        preferredChannel === "telegram" ? telegramUsername : undefined,
                 },
                 currentToken
             );
 
             setPhoneLink(saved);
             setEditingPhoneLink(false);
+            setSettingsOpen(false);
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to save phone link";
 
@@ -356,31 +405,82 @@ export default function DashboardPage() {
         }
     }
 
+    function handlePreferredChannelChange(channel: "linq" | "telegram") {
+        setPreferredChannel(channel);
+
+        if (channel === "telegram") {
+            setEditingPhoneLink(true);
+            return;
+        }
+
+        setEditingPhoneLink(true);
+    }
+
     async function handleCreatePlace(e: FormEvent) {
         e.preventDefault();
 
         const currentToken = requireToken();
         if (!currentToken) return;
 
+        if (!placeName.trim()) {
+            setError("Place name is required.");
+            return;
+        }
+
+        const latitude = Number(placeLatitude);
+        const longitude = Number(placeLongitude);
+        const radiusMeters = Number(placeRadiusMeters);
+
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            setError("Pick a location from the map or use your current location before saving the place.");
+            return;
+        }
+
+        if (!Number.isFinite(radiusMeters) || radiusMeters < 25 || radiusMeters > 5000) {
+            setError("Radius must be between 25 and 5000 meters.");
+            return;
+        }
+
         try {
             setPlaceSaving(true);
-            const created = await createPlace(
-                {
-                    name: placeName,
-                    category: placeCategory,
-                    latitude: Number(placeLatitude),
-                    longitude: Number(placeLongitude),
-                    radiusMeters: Number(placeRadiusMeters),
-                },
-                currentToken
-            );
+            const request = {
+                name: placeName,
+                category: placeCategory.trim() || undefined,
+                latitude,
+                longitude,
+                radiusMeters,
+            };
 
-            setPlaces((prev) => [created, ...prev]);
+            if (editingPlaceEntryId) {
+                const updated = await updatePlace(editingPlaceEntryId, request, currentToken);
+                setPlaces((prev) => prev.map((place) => (place.id === updated.id ? updated : place)));
+                if (taskPlaceId === updated.id) {
+                    setTaskPlaceId(updated.id);
+                }
+                if (editingPlaceId === updated.id) {
+                    setEditingPlaceId(updated.id);
+                }
+            } else {
+                const created = await createPlace(request, currentToken);
+                setPlaces((prev) => [created, ...prev]);
+                if (placeSelectionTarget === "task-create") {
+                    setTaskLocationReminderEnabled(true);
+                    setTaskPlaceId(created.id);
+                    setPlacesOpen(false);
+                    setPlaceSelectionTarget(null);
+                } else if (placeSelectionTarget === "task-edit") {
+                    setEditingLocationReminderEnabled(true);
+                    setEditingPlaceId(created.id);
+                    setPlacesOpen(false);
+                    setPlaceSelectionTarget(null);
+                }
+            }
             setPlaceName("");
             setPlaceCategory("");
             setPlaceLatitude("");
             setPlaceLongitude("");
             setPlaceRadiusMeters("250");
+            setEditingPlaceEntryId(null);
             setLocationCaptureMessage("");
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to create place";
@@ -447,9 +547,40 @@ export default function DashboardPage() {
         const currentToken = requireToken();
         if (!currentToken) return;
 
+        const linkedTasks = tasks.filter((task) => task.placeId === id);
+        const openLinkedCount = linkedTasks.filter((task) => !task.isCompleted).length;
+        const completedLinkedCount = linkedTasks.filter((task) => task.isCompleted).length;
+
+        if (linkedTasks.length > 0) {
+            const confirmed = window.confirm(
+                `This place is linked to ${linkedTasks.length} task(s) ` +
+                `(${openLinkedCount} open, ${completedLinkedCount} completed). ` +
+                `If you continue, the place will be removed from all linked tasks.`
+            );
+
+            if (!confirmed) {
+                return;
+            }
+        }
+
         try {
             await deletePlace(id, currentToken);
             setPlaces((prev) => prev.filter((place) => place.id !== id));
+            setTasks((prev) =>
+                prev.map((task) =>
+                    task.placeId === id
+                        ? { ...task, placeId: null, locationReminderEnabled: false }
+                        : task
+                )
+            );
+            if (editingPlaceEntryId === id) {
+                setEditingPlaceEntryId(null);
+                setPlaceName("");
+                setPlaceCategory("");
+                setPlaceLatitude("");
+                setPlaceLongitude("");
+                setPlaceRadiusMeters("250");
+            }
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to delete place";
 
@@ -463,34 +594,81 @@ export default function DashboardPage() {
         }
     }
 
-    async function handleSimulatePlace(place: SavedPlace) {
+    const reportCurrentLocation = useEffectEvent(
+        async (options?: { silentNoop?: boolean; showLoadingState?: boolean }) => {
         const currentToken = requireToken();
         if (!currentToken) return;
 
-        try {
-            setSimulatingPlaceId(place.id);
-            const result = await simulateLocationEvent(
-                {
-                    latitude: place.latitude,
-                    longitude: place.longitude,
-                },
-                currentToken
-            );
-            setLocationResult(result);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : "Failed to simulate location";
+        if (!navigator.geolocation) {
+            setLocationResult({
+                reminderSent: false,
+                message: "This browser does not support location reporting.",
+            });
+            return;
+        }
 
-            if (message.includes("401")) {
-                clearAuthData();
-                router.replace("/login");
-                return;
+        try {
+            if (options?.showLoadingState !== false) {
+                setReportingCurrentLocation(true);
             }
 
-            setError(message);
-        } finally {
-            setSimulatingPlaceId(null);
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        const result = await reportLocationEvent(
+                            {
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude,
+                            },
+                            currentToken
+                        );
+                        const toastResult = mapLocationResultToToast(result);
+                        if (toastResult || !options?.silentNoop) {
+                            setLocationResult(toastResult);
+                        }
+                    } catch (err) {
+                        const message = err instanceof Error ? err.message : "Failed to report current location";
+
+                        if (message.includes("401")) {
+                            clearAuthData();
+                            router.replace("/login");
+                            return;
+                        }
+
+                        setError(message);
+                    } finally {
+                        if (options?.showLoadingState !== false) {
+                            setReportingCurrentLocation(false);
+                        }
+                    }
+                },
+                (geoError) => {
+                    if (!options?.silentNoop) {
+                        setLocationResult({
+                            reminderSent: false,
+                            message:
+                                geoError.code === geoError.PERMISSION_DENIED
+                                    ? "Location permission was denied."
+                                    : "Could not read your current location.",
+                        });
+                    }
+
+                    if (options?.showLoadingState !== false) {
+                        setReportingCurrentLocation(false);
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0,
+                }
+            );
+        } catch {
+            if (options?.showLoadingState !== false) {
+                setReportingCurrentLocation(false);
+            }
         }
-    }
+    });
 
     async function handleToggleTask(task: TaskItem) {
   const currentToken = getToken();
@@ -597,6 +775,8 @@ export default function DashboardPage() {
             description: editingDescription,
             priority: editingPriority,
             category: editingCategory,
+            placeId: editingLocationReminderEnabled ? editingPlaceId || null : null,
+            locationReminderEnabled: editingLocationReminderEnabled,
             dueDate: editingDueDate
                 ? new Date(editingDueDate).toISOString()
                 : undefined,
@@ -670,6 +850,8 @@ export default function DashboardPage() {
         setEditingDescription(task.description || "");
         setEditingPriority(task.priority);
         setEditingCategory(task.category || "");
+        setEditingLocationReminderEnabled(Boolean(task.locationReminderEnabled));
+        setEditingPlaceId(task.placeId || "");
         setEditingDueDate(task.dueDate ? task.dueDate.split("T")[0] : "");
     }
 
@@ -679,7 +861,48 @@ export default function DashboardPage() {
         setEditingDescription("");
         setEditingPriority("medium");
         setEditingCategory("");
+        setEditingLocationReminderEnabled(false);
+        setEditingPlaceId("");
         setEditingDueDate("");
+    }
+
+    function handleOpenPlacesForCreate() {
+        setEditingPlaceEntryId(null);
+        setPlaceName("");
+        setPlaceCategory("");
+        setPlaceLatitude("");
+        setPlaceLongitude("");
+        setPlaceRadiusMeters("250");
+        setLocationCaptureMessage("");
+        setPlaceSelectionTarget("task-create");
+        setPlacesOpen(true);
+    }
+
+    function handleOpenPlacesForEdit() {
+        setEditingPlaceEntryId(null);
+        setPlaceName("");
+        setPlaceCategory("");
+        setPlaceLatitude("");
+        setPlaceLongitude("");
+        setPlaceRadiusMeters("250");
+        setLocationCaptureMessage("");
+        setPlaceSelectionTarget("task-edit");
+        setPlacesOpen(true);
+    }
+
+    function handleManagePlace(placeId: string) {
+        const place = places.find((item) => item.id === placeId);
+        if (!place) {
+            return;
+        }
+
+        setEditingPlaceEntryId(place.id);
+        setPlaceName(place.name);
+        setPlaceCategory(place.category ?? "");
+        setPlaceLatitude(place.latitude.toFixed(6));
+        setPlaceLongitude(place.longitude.toFixed(6));
+        setPlaceRadiusMeters(String(place.radiusMeters));
+        setPlacesOpen(true);
     }
 
     function handleLogout() {
@@ -689,6 +912,23 @@ export default function DashboardPage() {
 
     return (
         <main className="min-h-screen bg-neutral-950 px-4 py-8 text-neutral-100">
+            {locationResult ? (
+                <div className="fixed right-4 top-4 z-50 w-[min(28rem,calc(100vw-2rem))]">
+                    <div
+                        className={`rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur ${
+                            locationResult.reminderSent
+                                ? "border-emerald-500/40 bg-emerald-950/95 text-emerald-100"
+                                : "border-neutral-700 bg-neutral-950/95 text-neutral-100"
+                        }`}
+                    >
+                        <p className="text-sm font-medium">
+                            {locationResult.reminderSent ? "Reminder sent" : "Location update"}
+                        </p>
+                        <p className="mt-1 text-sm opacity-90">{locationResult.message}</p>
+                    </div>
+                </div>
+            ) : null}
+
             <div className="mx-auto max-w-4xl space-y-6">
                 <div className="flex items-center justify-between">
                 <div>
@@ -700,12 +940,55 @@ export default function DashboardPage() {
                     </p>
                 </div>
 
-                <button
-                    onClick={handleLogout}
-                    className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-200 shadow-sm transition hover:bg-neutral-800"
-                >
-                    Logout
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setPlacesOpen(true)}
+                        className="rounded-2xl border border-neutral-800 bg-neutral-900 p-2.5 text-neutral-200 shadow-sm transition hover:bg-neutral-800"
+                        aria-label="Open places"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            className="h-5 w-5"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-4.35 6-10a6 6 0 1 0-12 0c0 5.65 6 10 6 10Z" />
+                            <circle cx="12" cy="11" r="2.5" />
+                        </svg>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSettingsOpen(true)}
+                        className="rounded-2xl border border-neutral-800 bg-neutral-900 p-2.5 text-neutral-200 shadow-sm transition hover:bg-neutral-800"
+                        aria-label="Open settings"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            className="h-5 w-5"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M10.325 4.317a1.724 1.724 0 0 1 3.35 0 1.724 1.724 0 0 0 2.573 1.066 1.724 1.724 0 0 1 2.898 1.674 1.724 1.724 0 0 0 .91 2.264 1.724 1.724 0 0 1 0 3.358 1.724 1.724 0 0 0-.91 2.264 1.724 1.724 0 0 1-2.898 1.674 1.724 1.724 0 0 0-2.573 1.066 1.724 1.724 0 0 1-3.35 0 1.724 1.724 0 0 0-2.573-1.066 1.724 1.724 0 0 1-2.898-1.674 1.724 1.724 0 0 0-.91-2.264 1.724 1.724 0 0 1 0-3.358 1.724 1.724 0 0 0 .91-2.264 1.724 1.724 0 0 1 2.898-1.674 1.724 1.724 0 0 0 2.573-1.066Z"
+                            />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                    </button>
+
+                    <button
+                        onClick={handleLogout}
+                        className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm text-neutral-200 shadow-sm transition hover:bg-neutral-800"
+                    >
+                        Logout
+                    </button>
+                </div>
                 </div>
 
                 <AddTaskInput
@@ -714,11 +997,27 @@ export default function DashboardPage() {
                     category={category}
                     priority={priority}
                     dueDate={dueDate}
+                    locationReminderEnabled={taskLocationReminderEnabled}
+                    selectedPlaceId={taskPlaceId}
+                    places={places}
                     onTitleChange={setTitle}
                     onDescriptionChange={setDescription}
                     onCategoryChange={setCategory}
                     onPriorityChange={setPriority}
                     onDueDateChange={setDueDate}
+                    onLocationReminderEnabledChange={setTaskLocationReminderEnabled}
+                    onSelectedPlaceIdChange={setTaskPlaceId}
+                    onOpenPlaces={() => {
+                        if (taskPlaceId) {
+                            handleManagePlace(taskPlaceId);
+                        } else {
+                            handleOpenPlacesForCreate();
+                        }
+                    }}
+                    onClearPlace={() => {
+                        setTaskPlaceId("");
+                        setTaskLocationReminderEnabled(false);
+                    }}
                     onSubmit={handleCreateTask}
                 />
 
@@ -728,241 +1027,6 @@ export default function DashboardPage() {
                 warmingUp={recommendationWarmingUp}
                 onSuggestionClick={handleCreateFromSuggestion}
                 />
-
-                <section className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-4">
-                        <div>
-                            <h2 className="text-lg font-semibold text-white">Messaging Setup</h2>
-                            <p className="mt-1 text-sm text-neutral-400">
-                                Link your phone, pick a Linq line, then text first so reminders can continue in the same thread.
-                            </p>
-                        </div>
-
-                        {phoneLink?.hasInitiatedConversation ? (
-                            <span className="rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-300">
-                                Inbound linked
-                            </span>
-                        ) : (
-                            <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs text-yellow-300">
-                                Waiting for first text
-                            </span>
-                        )}
-                    </div>
-
-                    {phoneLinkLoading ? (
-                        <div className="mt-4 text-sm text-neutral-400">
-                            <p>Loading phone link...</p>
-                        </div>
-                    ) : phoneLink?.hasInitiatedConversation && !editingPhoneLink ? (
-                        <div className="mt-4 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <p className="text-sm font-medium text-white">Messaging is live</p>
-                                    <p className="mt-1 text-sm text-neutral-400">
-                                        {phoneLink.phoneNumber} is connected through {phoneLink.assignedFromPhoneNumber}
-                                    </p>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setEditingPhoneLink(true)}
-                                    className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-100 transition hover:bg-neutral-800"
-                                >
-                                    Edit setup
-                                </button>
-                            </div>
-
-                            <div className="mt-4 grid gap-3 md:grid-cols-3">
-                                <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
-                                    <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Status</p>
-                                    <p className="mt-2 text-sm text-neutral-200">Inbound thread established</p>
-                                </div>
-
-                                <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
-                                    <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Next trigger</p>
-                                    <p className="mt-2 text-sm text-neutral-200">Location reminders can send automatically</p>
-                                </div>
-
-                                <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
-                                    <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Message commands</p>
-                                    <p className="mt-2 text-sm text-neutral-200">LIST, ADD, DONE, DELETE, SNOOZE</p>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <form onSubmit={handleSavePhoneLink} className="mt-4 grid gap-3 md:grid-cols-3">
-                                <input
-                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                                    placeholder="+1 555 555 5555"
-                                    value={phoneNumber}
-                                    onChange={(e) => setPhoneNumber(e.target.value)}
-                                />
-
-                                <select
-                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none"
-                                    value={assignedFromPhoneNumber}
-                                    onChange={(e) => setAssignedFromPhoneNumber(e.target.value)}
-                                >
-                                    <option value="">Select Linq line</option>
-                                    {availableLines.map((line) => (
-                                        <option key={line.phoneNumber} value={line.phoneNumber}>
-                                            {line.phoneNumber} ({line.status})
-                                        </option>
-                                    ))}
-                                </select>
-
-                                <button
-                                    type="submit"
-                                    disabled={phoneLinkSaving}
-                                    className="rounded-2xl bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {phoneLinkSaving ? "Saving..." : "Save phone link"}
-                                </button>
-                            </form>
-
-                            <div className="mt-3 text-sm text-neutral-400">
-                                {phoneLink ? (
-                                    <p>
-                                        Linked: {phoneLink.phoneNumber} via {phoneLink.assignedFromPhoneNumber}
-                                    </p>
-                                ) : (
-                                    <p>No linked phone yet.</p>
-                                )}
-                            </div>
-                        </>
-                    )}
-                </section>
-
-                <section className="rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
-                    <div>
-                        <h2 className="text-lg font-semibold text-white">Saved Places</h2>
-                        <p className="mt-1 text-sm text-neutral-400">
-                            Save places that matter for errands or routines, then use them to trigger contextual reminders.
-                        </p>
-                    </div>
-
-                    <form onSubmit={handleCreatePlace} className="mt-4 grid gap-3 md:grid-cols-5">
-                        <input
-                            className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                            placeholder="Trader Joe's"
-                            value={placeName}
-                            onChange={(e) => setPlaceName(e.target.value)}
-                        />
-                        <select
-                            className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none"
-                            value={placeCategory}
-                            onChange={(e) => setPlaceCategory(e.target.value)}
-                            required
-                        >
-                            <option value="" disabled>
-                                Select task category
-                            </option>
-                            {taskCategories.map((taskCategory) => (
-                                <option key={taskCategory} value={taskCategory}>
-                                    {taskCategory}
-                                </option>
-                            ))}
-                        </select>
-                        <input
-                            className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                            placeholder="Latitude"
-                            value={placeLatitude}
-                            onChange={(e) => setPlaceLatitude(e.target.value)}
-                        />
-                        <input
-                            className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                            placeholder="Longitude"
-                            value={placeLongitude}
-                            onChange={(e) => setPlaceLongitude(e.target.value)}
-                        />
-                        <input
-                            className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                            placeholder="Radius meters"
-                            value={placeRadiusMeters}
-                            onChange={(e) => setPlaceRadiusMeters(e.target.value)}
-                        />
-
-                        <button
-                            type="button"
-                            onClick={handleUseCurrentLocation}
-                            disabled={capturingLocation}
-                            className="rounded-2xl border border-neutral-700 bg-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
-                        >
-                            {capturingLocation ? "Finding location..." : "Use current location"}
-                        </button>
-
-                        <button
-                            type="submit"
-                            disabled={placeSaving || !placeCategory}
-                            className="rounded-2xl bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-3 md:justify-self-end"
-                        >
-                            {placeSaving ? "Saving place..." : "Add place"}
-                        </button>
-                    </form>
-
-                    {locationCaptureMessage ? (
-                        <p className="mt-3 text-sm text-neutral-400">{locationCaptureMessage}</p>
-                    ) : (
-                        <p className="mt-3 text-sm text-neutral-500">
-                            Tip: use your current location for fast setup, then rename the place to something memorable.
-                        </p>
-                    )}
-
-                    <div className="mt-4">
-                        <PlacePickerMap
-                            latitude={placeLatitude ? Number(placeLatitude) : undefined}
-                            longitude={placeLongitude ? Number(placeLongitude) : undefined}
-                            onSelect={handleMapPlaceSelect}
-                        />
-                    </div>
-
-                    {locationResult ? (
-                        <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
-                            <p>{locationResult.message}</p>
-                        </div>
-                    ) : null}
-
-                    <div className="mt-4 space-y-3">
-                        {placesLoading ? (
-                            <p className="text-sm text-neutral-400">Loading places...</p>
-                        ) : places.length === 0 ? (
-                            <p className="text-sm text-neutral-400">No places yet.</p>
-                        ) : (
-                            places.map((place) => (
-                                <div
-                                    key={place.id}
-                                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3"
-                                >
-                                    <div>
-                                        <p className="text-sm font-medium text-white">{place.name}</p>
-                                        <p className="mt-1 text-xs text-neutral-400">
-                                            {place.category || "no category"} · {place.radiusMeters}m radius
-                                        </p>
-                                    </div>
-
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSimulatePlace(place)}
-                                            disabled={simulatingPlaceId === place.id}
-                                            className="rounded-2xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {simulatingPlaceId === place.id ? "Simulating..." : "Simulate arrival"}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeletePlace(place.id)}
-                                            className="rounded-2xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-red-400 transition hover:bg-neutral-700"
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </section>
 
                 {error ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1009,6 +1073,9 @@ export default function DashboardPage() {
                     editingCategory={editingCategory}
                     editingPriority={editingPriority}
                     editingDueDate={editingDueDate}
+                    editingLocationReminderEnabled={editingLocationReminderEnabled}
+                    editingPlaceId={editingPlaceId}
+                    places={places}
                     onToggle={handleToggleTask}
                     onDelete={handleDeleteTask}
                     onStartEdit={handleStartEdit}
@@ -1019,9 +1086,403 @@ export default function DashboardPage() {
                     setEditingCategory={setEditingCategory}
                     setEditingPriority={setEditingPriority}
                     setEditingDueDate={setEditingDueDate}
+                    setEditingLocationReminderEnabled={setEditingLocationReminderEnabled}
+                    setEditingPlaceId={setEditingPlaceId}
+                    onOpenPlaces={() => {
+                        if (editingPlaceId) {
+                            handleManagePlace(editingPlaceId);
+                        } else {
+                            handleOpenPlacesForEdit();
+                        }
+                    }}
+                    onClearPlace={() => {
+                        setEditingPlaceId("");
+                        setEditingLocationReminderEnabled(false);
+                    }}
                     transitioningTasks={transitioningTasks}
                 />
             </div>
+
+            {settingsOpen ? (
+                <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm">
+                    <button
+                        type="button"
+                        aria-label="Close settings"
+                        onClick={() => setSettingsOpen(false)}
+                        className="flex-1 cursor-default"
+                    />
+                    <aside className="h-full w-full max-w-md overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.22em] text-neutral-500">Settings</p>
+                                <h2 className="mt-2 text-2xl font-semibold text-white">Messaging</h2>
+                                <p className="mt-2 text-sm text-neutral-400">
+                                    Keep reminders and quick actions in one conversation.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setSettingsOpen(false)}
+                                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="mt-6 rounded-3xl border border-neutral-800 bg-neutral-900 p-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">Messaging</h3>
+                                    <p className="mt-1 text-sm text-neutral-400">
+                                        One thread. Fewer excuses.
+                                    </p>
+                                </div>
+
+                                {phoneLink?.hasInitiatedConversation ? (
+                                    <span className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1 text-xs text-green-300">
+                                        <span className="h-2 w-2 rounded-full bg-green-400" />
+                                        Active
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-300">
+                                        <span className="h-2 w-2 rounded-full bg-red-400" />
+                                        Not connected
+                                    </span>
+                                )}
+                            </div>
+
+                            {phoneLinkLoading ? (
+                                <div className="mt-4 text-sm text-neutral-400">
+                                    <p>Loading messaging status...</p>
+                                </div>
+                            ) : phoneLink && !editingPhoneLink ? (
+                                <div className="mt-4 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-medium text-white">
+                                                {phoneLink.hasInitiatedConversation ? "Messaging is live" : "Messaging is saved"}
+                                            </p>
+                                            <p className="mt-1 text-sm text-neutral-400">
+                                                {phoneLink.preferredChannel === "telegram"
+                                                    ? `@${phoneLink.telegramUsername} is connected on Telegram`
+                                                    : `${phoneLink.phoneNumber} is connected by text`}
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingPhoneLink(true)}
+                                            className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-100 transition hover:bg-neutral-800"
+                                        >
+                                            Edit setup
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-3">
+                                        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Status</p>
+                                            <p className="mt-2 text-sm text-neutral-200">
+                                                {phoneLink.hasInitiatedConversation
+                                                    ? "Inbound thread established"
+                                                    : preferredChannel === "telegram"
+                                                        ? `Send HELP to @${TELEGRAM_BOT_USERNAME} to finish linking`
+                                                        : "Send a first text to finish linking"}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Channel</p>
+                                            <p className="mt-2 text-sm text-neutral-200">
+                                                {phoneLink.preferredChannel === "telegram" ? "Telegram" : "Text"}
+                                            </p>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
+                                            <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Commands</p>
+                                            <p className="mt-2 text-sm text-neutral-200">LIST, ADD, DONE, DELETE, SNOOZE</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <form onSubmit={handleSavePhoneLink} className="mt-4 space-y-3">
+                                        <div className="grid grid-cols-2 gap-2 rounded-3xl border border-neutral-800 bg-neutral-950 p-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePreferredChannelChange("telegram")}
+                                                className={`rounded-2xl px-4 py-3 text-left transition ${
+                                                    preferredChannel === "telegram"
+                                                        ? "bg-white text-black"
+                                                        : "bg-transparent text-white hover:bg-neutral-900"
+                                                }`}
+                                            >
+                                                <p className="text-sm font-medium">Telegram</p>
+                                                <p className={`mt-1 text-xs ${preferredChannel === "telegram" ? "text-neutral-700" : "text-neutral-400"}`}>
+                                                    Free and always on
+                                                </p>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handlePreferredChannelChange("linq")}
+                                                className={`rounded-2xl px-4 py-3 text-left transition ${
+                                                    preferredChannel === "linq"
+                                                        ? "bg-white text-black"
+                                                        : "bg-transparent text-white hover:bg-neutral-900"
+                                                }`}
+                                            >
+                                                <p className="text-sm font-medium">Text</p>
+                                                <p className={`mt-1 text-xs ${preferredChannel === "linq" ? "text-neutral-700" : "text-neutral-400"}`}>
+                                                    Linq-powered fallback
+                                                </p>
+                                            </button>
+                                        </div>
+
+                                        {preferredChannel === "telegram" ? (
+                                            <div className="space-y-3 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
+                                                <div>
+                                                    <p className="text-sm font-medium text-white">Telegram identity</p>
+                                                    <p className="mt-1 text-xs text-neutral-400">
+                                                        Save your handle, then send `HELP` to start the thread.
+                                                    </p>
+                                                </div>
+                                                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                                                    <input
+                                                        className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                                        placeholder="@your_telegram_username"
+                                                        value={telegramUsername}
+                                                        onChange={(e) => setTelegramUsername(e.target.value)}
+                                                    />
+                                                    <a
+                                                        href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-neutral-100 transition hover:bg-neutral-800"
+                                                    >
+                                                        Open bot
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
+                                                <div>
+                                                    <p className="text-sm font-medium text-white">Text identity</p>
+                                                    <p className="mt-1 text-xs text-neutral-400">
+                                                        Use your phone number for text-based reminders.
+                                                    </p>
+                                                </div>
+                                                <div className="grid gap-3">
+                                                    <input
+                                                        className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                                        placeholder="+1 555 555 5555"
+                                                        value={phoneNumber}
+                                                        onChange={(e) => setPhoneNumber(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            type="submit"
+                                            disabled={phoneLinkSaving}
+                                            className="w-full rounded-2xl bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {phoneLinkSaving ? "Saving..." : "Save messaging setup"}
+                                        </button>
+                                    </form>
+
+                                    <div className="mt-3 text-sm text-neutral-400">
+                                        <p>
+                                            {preferredChannel === "telegram"
+                                                ? `Save your username, then send HELP to @${TELEGRAM_BOT_USERNAME}.`
+                                                : "Save your number, then send a first text to connect it."}
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </aside>
+                </div>
+            ) : null}
+
+            {placesOpen ? (
+                <div className="fixed inset-0 z-50 flex justify-end bg-black/55 backdrop-blur-sm">
+                    <button
+                        type="button"
+                        aria-label="Close places"
+                        onClick={() => {
+                            setPlacesOpen(false);
+                            setPlaceSelectionTarget(null);
+                        }}
+                        className="flex-1 cursor-default"
+                    />
+                    <aside className="h-full w-full max-w-2xl overflow-y-auto border-l border-neutral-800 bg-neutral-950 p-5 shadow-2xl">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs uppercase tracking-[0.22em] text-neutral-500">Places</p>
+                                <h2 className="mt-2 text-2xl font-semibold text-white">Places</h2>
+                                <p className="mt-2 text-sm text-neutral-400">
+                                    Save the places your future self tends to forget.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPlacesOpen(false);
+                                    setPlaceSelectionTarget(null);
+                                }}
+                                className="rounded-2xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition hover:bg-neutral-800"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="mt-6 rounded-3xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-white">Places</h3>
+                                    <p className="mt-1 text-sm text-neutral-400">
+                                        Give your tasks a sense of place.
+                                    </p>
+                                </div>
+                                <div className="rounded-2xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-right">
+                                    <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Location</p>
+                                    <p className="mt-1 text-sm text-neutral-200">
+                                        {reportingCurrentLocation
+                                            ? "Checking current location..."
+                                            : "Checks every 30 seconds"}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleCreatePlace} className="mt-4 grid gap-3 md:grid-cols-5">
+                                <input
+                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                    placeholder="Trader Joe's"
+                                    value={placeName}
+                                    onChange={(e) => setPlaceName(e.target.value)}
+                                />
+                                <input
+                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                    placeholder="Category (optional)"
+                                    value={placeCategory}
+                                    onChange={(e) => setPlaceCategory(e.target.value)}
+                                />
+                                <input
+                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                    placeholder="Latitude"
+                                    value={placeLatitude}
+                                    onChange={(e) => setPlaceLatitude(e.target.value)}
+                                />
+                                <input
+                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                    placeholder="Longitude"
+                                    value={placeLongitude}
+                                    onChange={(e) => setPlaceLongitude(e.target.value)}
+                                />
+                                <input
+                                    className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                    placeholder="Radius meters"
+                                    value={placeRadiusMeters}
+                                    onChange={(e) => setPlaceRadiusMeters(e.target.value)}
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={handleUseCurrentLocation}
+                                    disabled={capturingLocation}
+                                    className="rounded-2xl border border-neutral-700 bg-neutral-800 px-5 py-2.5 text-sm font-medium text-neutral-100 transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
+                                >
+                                    {capturingLocation ? "Finding location..." : "Use current location"}
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    disabled={placeSaving}
+                                    className="rounded-2xl bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-3 md:justify-self-end"
+                                >
+                                    {placeSaving
+                                        ? editingPlaceEntryId
+                                            ? "Saving changes..."
+                                            : "Saving place..."
+                                        : editingPlaceEntryId
+                                            ? "Save place changes"
+                                            : "Add place"}
+                                </button>
+                            </form>
+
+                            {editingPlaceEntryId ? (
+                                <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
+                                    <p>Editing place</p>
+                                </div>
+                            ) : null}
+
+                            {locationCaptureMessage ? (
+                                <p className="mt-3 text-sm text-neutral-400">{locationCaptureMessage}</p>
+                            ) : (
+                                <p className="mt-3 text-sm text-neutral-500">
+                                    Tip: use your current location for fast setup, then rename the place to something memorable.
+                                </p>
+                            )}
+
+                            <div className="mt-4">
+                                <PlacePickerMap
+                                    latitude={placeLatitude ? Number(placeLatitude) : undefined}
+                                    longitude={placeLongitude ? Number(placeLongitude) : undefined}
+                                    onSelect={handleMapPlaceSelect}
+                                />
+                            </div>
+
+                            {locationResult ? (
+                                <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
+                                    <p>{locationResult.message}</p>
+                                </div>
+                            ) : null}
+
+                            <div className="mt-4 space-y-3">
+                                {placesLoading ? (
+                                    <p className="text-sm text-neutral-400">Loading places...</p>
+                                ) : places.length === 0 ? (
+                                    <p className="text-sm text-neutral-400">No places yet.</p>
+                                ) : (
+                                    places.map((place) => (
+                                        <div
+                                            key={place.id}
+                                            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-950 p-3"
+                                        >
+                                            <div>
+                                                <p className="text-sm font-medium text-white">{place.name}</p>
+                                                <p className="mt-1 text-xs text-neutral-400">
+                                                    {place.category || "no category"} · {place.radiusMeters}m radius
+                                                </p>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleManagePlace(place.id)}
+                                                    className="rounded-2xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 transition hover:bg-neutral-700"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeletePlace(place.id)}
+                                                    className="rounded-2xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-red-400 transition hover:bg-neutral-700"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            ) : null}
         </main>
     );
 }

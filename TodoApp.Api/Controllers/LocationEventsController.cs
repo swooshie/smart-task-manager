@@ -18,8 +18,8 @@ public class LocationEventsController : ControllerBase
         _locationReminderService = locationReminderService;
     }
 
-    [HttpPost("simulate")]
-    public async Task<IActionResult> Simulate([FromBody] SimulateLocationEventRequest request)
+    [HttpPost("report")]
+    public async Task<IActionResult> Report([FromBody] ReportLocationEventRequest request)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
