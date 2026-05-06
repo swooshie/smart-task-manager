@@ -1,3 +1,4 @@
+using MongoDB.Bson;
 using MongoDB.Driver;
 using TodoApp.Api.Data;
 using TodoApp.Api.Models;
@@ -37,6 +38,11 @@ public class UserPhoneLinkRepository : IUserPhoneLinkRepository
 
     public async Task UpsertAsync(UserPhoneLink phoneLink)
     {
+        if (string.IsNullOrWhiteSpace(phoneLink.Id))
+        {
+            phoneLink.Id = ObjectId.GenerateNewId().ToString();
+        }
+
         phoneLink.UpdatedAt = DateTime.UtcNow;
 
         await _context.UserPhoneLinks.ReplaceOneAsync(
