@@ -65,9 +65,9 @@ export default function DashboardPage() {
     const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
     const [sortBy, setSortBy] = useState<"created" | "dueDate" | "priority">("created");
     const [phoneLink, setPhoneLink] = useState<UserPhoneLink | null>(null);
-    const [preferredChannel, setPreferredChannel] = useState<"linq" | "telegram">("telegram");
-    const [phoneNumber, setPhoneNumber] = useState("");
-    const [assignedFromPhoneNumber, setAssignedFromPhoneNumber] = useState("");
+    const [, setPreferredChannel] = useState<"linq" | "telegram">("telegram");
+    const [, setPhoneNumber] = useState("");
+    const [, setAssignedFromPhoneNumber] = useState("");
     const [telegramUsername, setTelegramUsername] = useState("");
     const [phoneLinkLoading, setPhoneLinkLoading] = useState(false);
     const [phoneLinkSaving, setPhoneLinkSaving] = useState(false);
@@ -89,11 +89,7 @@ export default function DashboardPage() {
     const [reportingCurrentLocation, setReportingCurrentLocation] = useState(false);
     const [locationResult, setLocationResult] = useState<LocationReminderResult | null>(null);
     const locationPollIntervalRef = useRef<number | null>(null);
-    const hasSavedMessagingIdentity = Boolean(
-        phoneLink?.preferredChannel === "telegram"
-            ? phoneLink?.telegramUsername
-            : phoneLink?.phoneNumber
-    );
+    const hasSavedMessagingIdentity = Boolean(phoneLink?.telegramUsername);
     const hasLocationLinkedTasks = tasks.some(
         (task) => task.locationReminderEnabled && Boolean(task.placeId)
     );
@@ -302,10 +298,10 @@ export default function DashboardPage() {
             setPhoneLinkLoading(true);
             const data = await getMyPhoneLink(currentToken);
             setPhoneLink(data);
-            setPreferredChannel(data.preferredChannel);
+            setPreferredChannel("telegram");
             setPhoneNumber(data.phoneNumber ?? "");
             setAssignedFromPhoneNumber(data.assignedFromPhoneNumber ?? "");
-            setTelegramUsername(data.telegramUsername ?? "");
+            setTelegramUsername(data.preferredChannel === "telegram" ? data.telegramUsername ?? "" : "");
             setEditingPhoneLink(!data.hasInitiatedConversation);
         } catch (err) {
             const message = err instanceof Error ? err.message : "Failed to load linked phone";
@@ -400,12 +396,8 @@ export default function DashboardPage() {
             setPhoneLinkSaving(true);
             const saved = await upsertMyPhoneLink(
                 {
-                    preferredChannel,
-                    phoneNumber: preferredChannel === "linq" ? phoneNumber : undefined,
-                    assignedFromPhoneNumber:
-                        preferredChannel === "linq" ? assignedFromPhoneNumber || undefined : undefined,
-                    telegramUsername:
-                        preferredChannel === "telegram" ? telegramUsername : undefined,
+                    preferredChannel: "telegram",
+                    telegramUsername,
                 },
                 currentToken
             );
@@ -426,17 +418,6 @@ export default function DashboardPage() {
         } finally {
             setPhoneLinkSaving(false);
         }
-    }
-
-    function handlePreferredChannelChange(channel: "linq" | "telegram") {
-        setPreferredChannel(channel);
-
-        if (channel === "telegram") {
-            setEditingPhoneLink(true);
-            return;
-        }
-
-        setEditingPhoneLink(true);
     }
 
     async function handleCreatePlace(e: FormEvent) {
@@ -1223,13 +1204,11 @@ export default function DashboardPage() {
                                                         : "Messaging is not set up"}
                                             </p>
                                             <p className="mt-1 text-sm text-neutral-400">
-                                                {phoneLink.preferredChannel === "telegram"
+                                                {phoneLink.telegramUsername
                                                     ? phoneLink.hasInitiatedConversation
                                                         ? `@${phoneLink.telegramUsername} is connected on Telegram`
                                                         : `@${phoneLink.telegramUsername} is saved and waiting for a first message`
-                                                    : phoneLink.hasInitiatedConversation
-                                                        ? `${phoneLink.phoneNumber} is connected by text`
-                                                        : `${phoneLink.phoneNumber} is saved and waiting for a first text`}
+                                                    : "Save your Telegram username to start linking"}
                                             </p>
                                         </div>
 
@@ -1248,17 +1227,13 @@ export default function DashboardPage() {
                                             <p className="mt-2 text-sm text-neutral-200">
                                                 {phoneLink.hasInitiatedConversation
                                                     ? "Inbound thread established"
-                                                    : preferredChannel === "telegram"
-                                                        ? `Open @${TELEGRAM_BOT_USERNAME} and send HELP to finish linking`
-                                                        : "Send a first text to finish linking"}
+                                                    : `Open @${TELEGRAM_BOT_USERNAME} and send HELP to finish linking`}
                                             </p>
                                         </div>
 
                                         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
                                             <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Channel</p>
-                                            <p className="mt-2 text-sm text-neutral-200">
-                                                {phoneLink.preferredChannel === "telegram" ? "Telegram" : "Text"}
-                                            </p>
+                                            <p className="mt-2 text-sm text-neutral-200">Telegram</p>
                                         </div>
 
                                         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3">
@@ -1270,81 +1245,34 @@ export default function DashboardPage() {
                             ) : (
                                 <>
                                     <form onSubmit={handleSavePhoneLink} className="mt-4 space-y-3">
-                                        <div className="grid grid-cols-2 gap-2 rounded-3xl border border-neutral-800 bg-neutral-950 p-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => handlePreferredChannelChange("telegram")}
-                                                className={`rounded-2xl px-4 py-3 text-left transition ${
-                                                    preferredChannel === "telegram"
-                                                        ? "bg-white text-black"
-                                                        : "bg-transparent text-white hover:bg-neutral-900"
-                                                }`}
-                                            >
-                                                <p className="text-sm font-medium">Telegram</p>
-                                                <p className={`mt-1 text-xs ${preferredChannel === "telegram" ? "text-neutral-700" : "text-neutral-400"}`}>
-                                                    Free and always on
+                                        <div className="space-y-3 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
+                                            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+                                                <p className="text-sm font-medium text-white">Telegram</p>
+                                                <p className="mt-1 text-xs text-neutral-400">Free and always on</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-white">Telegram identity</p>
+                                                <p className="mt-1 text-xs text-neutral-400">
+                                                    Save your handle, then send `HELP` to start the thread.
                                                 </p>
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => handlePreferredChannelChange("linq")}
-                                                className={`rounded-2xl px-4 py-3 text-left transition ${
-                                                    preferredChannel === "linq"
-                                                        ? "bg-white text-black"
-                                                        : "bg-transparent text-white hover:bg-neutral-900"
-                                                }`}
-                                            >
-                                                <p className="text-sm font-medium">Text</p>
-                                                <p className={`mt-1 text-xs ${preferredChannel === "linq" ? "text-neutral-700" : "text-neutral-400"}`}>
-                                                    Linq-powered fallback
-                                                </p>
-                                            </button>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                                                <input
+                                                    className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
+                                                    placeholder="@your_telegram_username"
+                                                    value={telegramUsername}
+                                                    onChange={(e) => setTelegramUsername(e.target.value)}
+                                                />
+                                                <a
+                                                    href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-neutral-100 transition hover:bg-neutral-800"
+                                                >
+                                                    Open bot
+                                                </a>
+                                            </div>
                                         </div>
-
-                                        {preferredChannel === "telegram" ? (
-                                            <div className="space-y-3 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
-                                                <div>
-                                                    <p className="text-sm font-medium text-white">Telegram identity</p>
-                                                    <p className="mt-1 text-xs text-neutral-400">
-                                                        Save your handle, then send `HELP` to start the thread.
-                                                    </p>
-                                                </div>
-                                                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-                                                    <input
-                                                        className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                                                        placeholder="@your_telegram_username"
-                                                        value={telegramUsername}
-                                                        onChange={(e) => setTelegramUsername(e.target.value)}
-                                                    />
-                                                    <a
-                                                        href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-neutral-100 transition hover:bg-neutral-800"
-                                                    >
-                                                        Open bot
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3 rounded-3xl border border-neutral-800 bg-neutral-950 p-4">
-                                                <div>
-                                                    <p className="text-sm font-medium text-white">Text identity</p>
-                                                    <p className="mt-1 text-xs text-neutral-400">
-                                                        Use your phone number for text-based reminders.
-                                                    </p>
-                                                </div>
-                                                <div className="grid gap-3">
-                                                    <input
-                                                        className="rounded-2xl border border-neutral-800 bg-neutral-900 p-3 text-sm text-white outline-none placeholder:text-neutral-500"
-                                                        placeholder="+1 555 555 5555"
-                                                        value={phoneNumber}
-                                                        onChange={(e) => setPhoneNumber(e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
 
                                         <button
                                             type="submit"
@@ -1356,11 +1284,7 @@ export default function DashboardPage() {
                                     </form>
 
                                     <div className="mt-3 text-sm text-neutral-400">
-                                        <p>
-                                            {preferredChannel === "telegram"
-                                                ? `Save your username, then send HELP to @${TELEGRAM_BOT_USERNAME}.`
-                                                : "Save your number, then send a first text to connect it."}
-                                        </p>
+                                        <p>{`Save your username, then send HELP to @${TELEGRAM_BOT_USERNAME}.`}</p>
                                     </div>
                                 </>
                             )}
