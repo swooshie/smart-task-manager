@@ -94,6 +94,9 @@ export default function DashboardPage() {
             ? phoneLink?.telegramUsername
             : phoneLink?.phoneNumber
     );
+    const hasLocationLinkedTasks = tasks.some(
+        (task) => task.locationReminderEnabled && Boolean(task.placeId)
+    );
     const messagingStatusLabel = phoneLink?.hasInitiatedConversation
         ? "Active"
         : hasSavedMessagingIdentity
@@ -174,6 +177,18 @@ export default function DashboardPage() {
     }, [locationResult]);
 
     useEffect(() => {
+        if (!error) {
+            return;
+        }
+
+        const timeout = window.setTimeout(() => {
+            setError("");
+        }, 5000);
+
+        return () => window.clearTimeout(timeout);
+    }, [error]);
+
+    useEffect(() => {
         if (!navigator.geolocation) {
             return;
         }
@@ -250,10 +265,7 @@ export default function DashboardPage() {
         }
 
         if (result.message === "Link your messaging channel and send it a first message before reminders can be sent.") {
-            return {
-                ...result,
-                message: "Finish linking your messaging channel to enable reminders.",
-            };
+            return null;
         }
 
         return result;
@@ -940,7 +952,25 @@ export default function DashboardPage() {
                 </div>
             ) : null}
 
+            {error ? (
+                <div className="fixed right-4 top-24 z-50 w-[min(28rem,calc(100vw-2rem))]">
+                    <div className="rounded-2xl border border-red-500/30 bg-red-950/95 px-4 py-3 text-red-100 shadow-2xl backdrop-blur">
+                        <p className="text-sm font-medium">Something needs attention</p>
+                        <p className="mt-1 text-sm opacity-90">{error}</p>
+                    </div>
+                </div>
+            ) : null}
+
             <div className="mx-auto max-w-4xl space-y-6">
+                {hasLocationLinkedTasks && !phoneLink?.hasInitiatedConversation ? (
+                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
+                        <p className="font-medium">Messaging still needs to be connected.</p>
+                        <p className="mt-1 text-amber-200/90">
+                            Your location-linked tasks are ready. Open Messaging and send the first message to enable reminders.
+                        </p>
+                    </div>
+                ) : null}
+
                 <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-semibold tracking-light text-neutral-200">
@@ -1040,12 +1070,6 @@ export default function DashboardPage() {
                 warmingUp={recommendationWarmingUp}
                 onSuggestionClick={handleCreateFromSuggestion}
                 />
-
-                {error ? (
-                <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {error}
-                </div>
-                ) : null}
 
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-3 shadow-sm">
                     <div className="flex gap-2">
@@ -1487,12 +1511,6 @@ export default function DashboardPage() {
                                     onSelect={handleMapPlaceSelect}
                                 />
                             </div>
-
-                            {locationResult ? (
-                                <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
-                                    <p>{locationResult.message}</p>
-                                </div>
-                            ) : null}
 
                             <div className="mt-4 space-y-3">
                                 {placesLoading ? (
